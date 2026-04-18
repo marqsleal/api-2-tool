@@ -1,0 +1,414 @@
+openapi: 3.0.3
+info:
+  title: API-2-Tool
+  version: 1.0.0
+  description: |
+    API para cadastro de definicoes de tools, listagem, consulta por ID e execucao de chamadas
+    upstream com retorno normalizado em function_call_output.
+servers:
+  - url: http://localhost:8080
+    description: Local
+
+tags:
+  - name: Health
+  - name: Tools
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check da API
+      operationId: healthCheck
+      responses:
+        '200':
+          description: API online
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
+  /tool:
+    post:
+      tags: [Tools]
+      summary: Cadastra uma definicao de tool
+      operationId: createTool
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ToolDefinitionInput'
+      responses:
+        '201':
+          description: Tool cadastrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolDefinitionResponse'
+        '400':
+          description: Requisicao invalida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tool/definitions:
+    get:
+      tags: [Tools]
+      summary: Lista todas as definicoes de tools
+      operationId: listToolDefinitions
+      responses:
+        '200':
+          description: Lista de tools
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolDefinitionsListResponse'
+        '500':
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tool/definitions/{id}:
+    get:
+      tags: [Tools]
+      summary: Busca uma definicao de tool por ID
+      operationId: getToolDefinitionByID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: tool_ba1cb19e-238a-42cb-95d1-2c4a7bf3f4fc
+      responses:
+        '200':
+          description: Tool encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolDefinitionResponse'
+        '400':
+          description: ID invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Tool nao encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      tags: [Tools]
+      summary: Atualiza parcialmente uma definicao de tool (exceto campo active)
+      operationId: patchToolDefinitionByID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: tool_ba1cb19e-238a-42cb-95d1-2c4a7bf3f4fc
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ToolDefinitionPatchInput'
+      responses:
+        '200':
+          description: Tool atualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolDefinitionResponse'
+        '400':
+          description: Requisicao invalida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Tool nao encontrada (ou inativa)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags: [Tools]
+      summary: Remove logicamente uma tool (active=false)
+      operationId: deleteToolDefinitionByID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: tool_ba1cb19e-238a-42cb-95d1-2c4a7bf3f4fc
+      responses:
+        '204':
+          description: Tool removida logicamente
+        '400':
+          description: ID invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Tool nao encontrada (ou inativa)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tool/execute/{id}:
+    post:
+      tags: [Tools]
+      summary: Executa uma tool por ID
+      operationId: executeToolByID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: tool_ba1cb19e-238a-42cb-95d1-2c4a7bf3f4fc
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecuteToolInput'
+      responses:
+        '200':
+          description: Execucao concluida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FunctionCallOutput'
+        '400':
+          description: Requisicao invalida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Definicao nao encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Erro no upstream
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+      required: [status]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: definition not found
+      required: [error]
+
+    ToolDefinitionInput:
+      type: object
+      properties:
+        name:
+          type: string
+          example: viacep_consultar_cep
+        description:
+          type: string
+          example: Consulta dados de CEP no ViaCEP.
+        method:
+          type: string
+          example: GET
+        url:
+          type: string
+          format: uri
+          example: https://viacep.com.br/ws/01001000/json/
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            Authorization: Bearer token
+        parameters:
+          type: object
+          additionalProperties: true
+          example:
+            type: object
+            properties:
+              cep:
+                type: string
+        strict:
+          type: boolean
+          default: false
+      required: [name, method, url]
+
+    ToolDefinitionPatchInput:
+      type: object
+      description: Atualizacao parcial. Campo active nao pode ser alterado via patch.
+      properties:
+        name:
+          type: string
+          example: viacep_consultar_cep
+        description:
+          type: string
+          example: Consulta dados de CEP no ViaCEP.
+        method:
+          type: string
+          example: GET
+        url:
+          type: string
+          format: uri
+          example: https://viacep.com.br/ws/01001000/json/
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        parameters:
+          type: object
+          additionalProperties: true
+        strict:
+          type: boolean
+
+    ToolFunction:
+      type: object
+      properties:
+        name:
+          type: string
+          example: viacep_consultar_cep
+        description:
+          type: string
+          example: Consulta dados de CEP no ViaCEP.
+        parameters:
+          type: object
+          additionalProperties: true
+        strict:
+          type: boolean
+      required: [name, parameters]
+
+    ToolFunctionDefinition:
+      type: object
+      properties:
+        type:
+          type: string
+          example: function
+        function:
+          $ref: '#/components/schemas/ToolFunction'
+      required: [type, function]
+
+    UpstreamDefinition:
+      type: object
+      properties:
+        method:
+          type: string
+          example: GET
+        url:
+          type: string
+          format: uri
+          example: https://viacep.com.br/ws/01001000/json/
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+      required: [method, url]
+
+    ToolDefinitionResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          example: tool_ba1cb19e-238a-42cb-95d1-2c4a7bf3f4fc
+        active:
+          type: boolean
+          example: true
+        tool:
+          $ref: '#/components/schemas/ToolFunctionDefinition'
+        upstream:
+          $ref: '#/components/schemas/UpstreamDefinition'
+      required: [id, active, tool, upstream]
+
+    ToolDefinitionsListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ToolDefinitionResponse'
+      required: [items]
+
+    ExecuteToolInput:
+      type: object
+      properties:
+        call_id:
+          type: string
+          example: call_123
+        arguments:
+          type: object
+          additionalProperties: true
+          example:
+            cep: "01001000"
+      required: [arguments]
+
+    FunctionCallOutput:
+      type: object
+      properties:
+        type:
+          type: string
+          example: function_call_output
+        call_id:
+          type: string
+          example: call_123
+        output:
+          type: string
+          description: JSON serializado em string com os dados normalizados da execucao.
+          example: '{"definition_id":"tool_x","name":"viacep_consultar_cep","status_code":200,"response":{"cep":"01001-000"}}'
+      required: [type, output]

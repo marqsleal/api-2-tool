@@ -1,0 +1,31 @@
+{
+  "name": "restcountries_buscar_pais",
+  "description": "Consulta informacoes de paises no REST Countries: nome oficial, capital, moeda, regiao, idiomas, fusos e populacao. Util para contexto geografico em agentes.",
+  "method": "GET",
+  "url": "https://restcountries.com/v3.1/name/{country_name}?fields={fields}&fullText={full_text}",
+  "headers": {},
+  "parameters": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["country_name"],
+    "properties": {
+      "country_name": {
+        "type": "string",
+        "description": "Nome do pais para busca textual. Exemplo: brazil, japan, germany.",
+        "minLength": 2,
+        "examples": ["brazil", "japan", "argentina"]
+      },
+      "fields": {
+        "type": "string",
+        "description": "Campos separados por virgula para limitar payload e tokens da resposta.",
+        "default": "name,capital,currencies,cca2,region,population,languages,timezones"
+      },
+      "full_text": {
+        "type": "boolean",
+        "description": "Quando true, interpretacao como nome completo exato.",
+        "default": false
+      }
+    }
+  },
+  "strict": true
+}

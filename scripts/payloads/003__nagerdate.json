@@ -1,0 +1,33 @@
+{
+  "name": "nagerdate_feriados_publicos",
+  "description": "Consulta feriados publicos por ano e pais na Nager.Date, retornando data, nome local, nome em ingles, escopo nacional e tipos de feriado.",
+  "method": "GET",
+  "url": "https://date.nager.at/api/v3/publicholidays/{year}/{country_code}",
+  "headers": {},
+  "parameters": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["year", "country_code"],
+    "properties": {
+      "year": {
+        "type": "integer",
+        "description": "Ano calendario para consulta de feriados.",
+        "minimum": 1970,
+        "maximum": 2100,
+        "examples": [2025, 2026, 2027]
+      },
+      "country_code": {
+        "type": "string",
+        "description": "Codigo de pais ISO 3166-1 alpha-2. Exemplo: BR, US, DE.",
+        "pattern": "^[A-Z]{2}$",
+        "examples": ["BR", "US", "DE"]
+      },
+      "only_national": {
+        "type": "boolean",
+        "description": "Quando true, considerar apenas feriados nacionais (global=true).",
+        "default": false
+      }
+    }
+  },
+  "strict": true
+}

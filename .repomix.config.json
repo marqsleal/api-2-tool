@@ -1,0 +1,86 @@
+{
+    "version": 1,
+    "include": [
+        "**/*.go",
+        "**/*.py",
+        "**/*.sql",
+        "**/*.yaml",
+        "**/*.yml",
+        "**/*.json",
+        "**/*.toml",
+        "**/*.md",
+        "**/*.sh",
+        "**/Dockerfile",
+        "**/*.dockerfile",
+        "**/*.env.example"
+    ],
+    "exclude": [
+        ".git/**",
+        ".github/**",
+        "vendor/**",
+        "node_modules/**",
+        "__pycache__/**",
+        "*.pyc",
+        "*.pyo",
+        ".venv/**",
+        "venv/**",
+        "env/**",
+        "bin/**",
+        "dist/**",
+        "build/**",
+        "coverage/**",
+        "*.coverprofile",
+        "htmlcov/**",
+        ".mypy_cache/**",
+        ".pytest_cache/**",
+        ".ruff_cache/**",
+        "data/**",
+        "datasets/**",
+        "models/**",
+        "artifacts/**",
+        "*.parquet",
+        "*.csv",
+        "*.pkl",
+        "*.joblib",
+        ".idea/**",
+        ".vscode/**",
+        "*.log",
+        "*.tmp",
+        "*.out",
+        "mlruns/**",
+        "logs/**"
+    ],
+    "entryPoints": [
+        "README.md",
+        "go.mod",
+        "pyproject.toml",
+        "requirements.txt",
+        "Makefile",
+        "docker-compose.yml",
+        "docker/observability/docker-compose.yml"
+    ],
+    "priority": [
+        "cmd/**",
+        "internal/**",
+        "app/**",
+        "services/**",
+        "repositories/**",
+        "api/**",
+        "core/**",
+        "pkg/**"
+    ],
+    "chunking": {
+        "maxFileSizeKB": 200,
+        "maxChunkSize": 1200,
+        "overlap": 150
+    },
+    "formatting": {
+        "includeLineNumbers": true,
+        "preserveComments": true,
+        "normalizeWhitespace": true
+    },
+    "metadata": {
+        "includeFileTree": true,
+        "includeLanguageStats": true
+    }
+}

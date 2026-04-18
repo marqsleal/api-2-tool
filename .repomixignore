@@ -1,0 +1,189 @@
+# =========================
+
+# GENERAL
+
+# =========================
+
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+*.swo
+
+# =========================
+
+# GIT / CI
+
+# =========================
+
+.git/
+.gitignore
+.github/
+
+# =========================
+
+# GO
+
+# =========================
+
+# Build artifacts
+
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+*.a
+
+# Go workspace / modules cache
+
+go.work
+go.work.sum
+
+# Vendor (opcional — mantenha se você versiona)
+
+vendor/
+
+# Coverage
+
+coverage.out
+*.coverprofile
+
+# Binary outputs
+
+bin/
+dist/
+
+# =========================
+
+# PYTHON
+
+# =========================
+
+**pycache**/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+
+.venv/
+venv/
+env/
+ENV/
+*.env
+
+# Packaging
+
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Installer logs
+
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Test / coverage
+
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+
+# Type checkers
+
+.mypy_cache/
+.pyre/
+.ruff_cache/
+
+# Jupyter
+
+.ipynb_checkpoints/
+
+# =========================
+
+# DATA / ML (CRÍTICO)
+
+# =========================
+
+data/
+datasets/
+*.csv
+*.parquet
+*.feather
+*.h5
+*.pkl
+*.joblib
+*.onnx
+*.pt
+*.ckpt
+
+# Model artifacts
+
+models/
+artifacts/
+
+# =========================
+
+# DOCKER
+
+# =========================
+
+docker-compose.override.yml
+*.env
+.env.*
+!.env.example
+
+# =========================
+
+# IDE / EDITORS
+
+# =========================
+
+.vscode/
+.idea/
+*.iml
+
+# =========================
+
+# OS / TERMINAL
+
+# =========================
+
+*.pid
+*.seed
+
+# =========================
+
+# TEMP / CACHE
+
+# =========================
+
+tmp/
+temp/
+.cache/
+
+# =========================
+
+# DOCUMENTATION BUILD
+
+# =========================
+
+site/
+docs/_build/
+
+# =========================
+
+# LOCAL CONFIGS
+
+# =========================
+
+config.local.*
+secrets.*
+*.key
+*.pem
+*.crt

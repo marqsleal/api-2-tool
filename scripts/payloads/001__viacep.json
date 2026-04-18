@@ -1,0 +1,26 @@
+{
+  "name": "viacep_consultar_cep",
+  "description": "Consulta dados de endereco no ViaCEP a partir de um CEP brasileiro. Retorna logradouro, bairro, cidade, estado, IBGE, DDD e metadados oficiais para enriquecer respostas de agentes.",
+  "method": "GET",
+  "url": "https://viacep.com.br/ws/{cep}/json/",
+  "headers": {},
+  "parameters": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["cep"],
+    "properties": {
+      "cep": {
+        "type": "string",
+        "description": "CEP brasileiro com 8 digitos numericos (somente numeros). Exemplo: 01001000.",
+        "pattern": "^[0-9]{8}$",
+        "examples": ["01001000", "30140071"]
+      },
+      "include_geodata": {
+        "type": "boolean",
+        "description": "Quando true, manter campos de codigos oficiais (ibge, gia, siafi) na resposta resumida do agente.",
+        "default": true
+      }
+    }
+  },
+  "strict": true
+}

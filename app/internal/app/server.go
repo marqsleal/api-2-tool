@@ -18,11 +18,13 @@ func NewServer(cfg config.Config, handler http.Handler) *http.Server {
 	}
 }
 
-func Start(server *http.Server) {
+func Start(server *http.Server) error {
 	log.Printf("server running on %s", server.Addr)
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Fatal(err)
+		return err
 	}
+
+	return nil
 }
 
 func Shutdown(server *http.Server, timeout time.Duration) {

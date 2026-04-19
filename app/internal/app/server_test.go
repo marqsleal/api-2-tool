@@ -22,8 +22,9 @@ func TestNewServerAndLifecycle(t *testing.T) {
 	}
 
 	done := make(chan struct{})
+	errs := make(chan error, 1)
 	go func() {
-		Start(s)
+		errs <- Start(s)
 		close(done)
 	}()
 
@@ -34,6 +35,9 @@ func TestNewServerAndLifecycle(t *testing.T) {
 	case <-done:
 	case <-time.After(2 * time.Second):
 		t.Fatalf("server did not stop")
+	}
+	if err := <-errs; err != nil {
+		t.Fatalf("unexpected start error: %v", err)
 	}
 
 	Shutdown(s, 10*time.Millisecond)

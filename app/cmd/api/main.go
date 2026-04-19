@@ -41,12 +41,26 @@ func main() {
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(stop)
 
-	go app.Start(server)
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- app.Start(server)
+	}()
 
-	<-stop
-	log.Println("shutdown initiated")
+	select {
+	case err := <-serverErr:
+		if err != nil {
+			log.Fatalf("server failed: %v", err)
+		}
+		return
+	case <-stop:
+		log.Println("shutdown initiated")
+	}
 
 	app.Shutdown(server, cfg.ShutdownTimeout)
+	if err := <-serverErr; err != nil {
+		log.Printf("server stopped with error: %v", err)
+	}
 	log.Println("server stopped")
 }

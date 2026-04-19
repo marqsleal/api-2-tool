@@ -17,6 +17,7 @@ type ToolJobRepository interface {
 	MarkSucceeded(ctx context.Context, jobID string, result string, now time.Time) error
 	MarkRetryPending(ctx context.Context, jobID string, nextRunAt time.Time, errMsg string, now time.Time) error
 	MarkFailed(ctx context.Context, jobID string, errMsg string, now time.Time) error
+	DeleteTerminalOlderThan(ctx context.Context, threshold time.Time) error
 }
 
 type InMemoryToolJobRepository struct {
@@ -66,6 +67,11 @@ func (r *InMemoryToolJobRepository) ClaimNextPending(_ context.Context, now time
 	var candidate domain.ToolJob
 	found := false
 	for _, item := range r.items {
+		if item.Status == domain.JobRunning && !item.LeaseUntil.IsZero() && item.LeaseUntil.Before(now) {
+			item.Status = domain.JobPending
+			item.LeaseUntil = time.Time{}
+			r.items[item.ID] = item
+		}
 		if item.Status != domain.JobPending {
 			continue
 		}
@@ -136,5 +142,17 @@ func (r *InMemoryToolJobRepository) MarkFailed(_ context.Context, jobID string, 
 	item.LeaseUntil = time.Time{}
 	item.UpdatedAt = now
 	r.items[jobID] = item
+	return nil
+}
+
+func (r *InMemoryToolJobRepository) DeleteTerminalOlderThan(_ context.Context, threshold time.Time) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for id, item := range r.items {
+		if (item.Status == domain.JobSucceeded || item.Status == domain.JobFailed) && item.UpdatedAt.Before(threshold) {
+			delete(r.items, id)
+		}
+	}
 	return nil
 }

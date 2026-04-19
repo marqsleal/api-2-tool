@@ -8,6 +8,7 @@ type ToolDefinition struct {
 	URL         string            `json:"url"`
 	Headers     map[string]string `json:"headers"`
 	Parameters  map[string]any    `json:"parameters"`
+	Cache       ToolCacheConfig   `json:"cache"`
 	Strict      bool              `json:"strict"`
 	Active      bool              `json:"active"`
 }
@@ -19,7 +20,14 @@ type ToolDefinitionPatch struct {
 	URL         *string
 	Headers     *map[string]string
 	Parameters  *map[string]any
+	Cache       *ToolCacheConfig
 	Strict      *bool
+}
+
+type ToolCacheConfig struct {
+	Enabled    bool `json:"enabled"`
+	TTLSeconds int  `json:"ttl_seconds"`
+	MaxEntries int  `json:"max_entries"`
 }
 
 type ToolFunctionDefinition struct {

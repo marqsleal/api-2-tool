@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -28,7 +30,6 @@ type ToolExecutorService struct {
 	client            *http.Client
 	retryMaxAttempts  int
 	totalTimeout      time.Duration
-	cacheTTL          time.Duration
 	cacheRegistry     *toolCacheRegistry
 	randSource        *rand.Rand
 }
@@ -42,7 +43,6 @@ func NewToolExecutorService(definitionService ToolDefinitionService) ToolExecuto
 		},
 		retryMaxAttempts: 3,
 		totalTimeout:     30 * time.Second,
-		cacheTTL:         30 * time.Second,
 		cacheRegistry:    newToolCacheRegistry(128),
 		randSource:       rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
@@ -86,10 +86,23 @@ func (s ToolExecutorService) Execute(ctx context.Context, definitionID string, i
 		request.Header.Set(key, value)
 	}
 
+	now := time.Now()
 	cacheKey := ""
-	if strings.EqualFold(definition.Method, http.MethodGet) && s.cacheRegistry != nil && s.cacheTTL > 0 {
-		cacheKey = buildCacheKey(definitionID, request)
-		if cached, hit := s.cacheRegistry.cacheFor(definitionID).Get(cacheKey, time.Now()); hit {
+	cacheEnabled := strings.EqualFold(definition.Method, http.MethodGet) && definition.Cache.Enabled && definition.Cache.TTLSeconds > 0 && definition.Cache.MaxEntries > 0
+	if cacheEnabled && s.cacheRegistry != nil {
+		cacheKey = buildCacheKey(definitionID, request, input.Arguments, definition.Headers)
+		cache := s.cacheRegistry.cacheFor(definitionID, definition.Cache.MaxEntries)
+		if cached, remaining, hit := cache.Get(cacheKey, now); hit {
+			outputBytes, err := applyExecutionMetadata(cached, map[string]any{
+				"cache_hit":              true,
+				"cache_key":              cacheKey,
+				"cache_ttl_remaining_ms": remaining.Milliseconds(),
+				"attempt_count":          0,
+				"retry_reason":           "",
+			})
+			if err == nil {
+				cached = outputBytes
+			}
 			return domain.FunctionCallOutput{
 				Type:   "function_call_output",
 				CallID: input.CallID,
@@ -107,7 +120,7 @@ func (s ToolExecutorService) Execute(ctx context.Context, definitionID string, i
 		}
 	}
 
-	response, err := s.doWithRetry(ctx, request)
+	response, attemptCount, retryReason, err := s.doWithRetry(ctx, request)
 	if err != nil {
 		if s.circuitBreaker != nil {
 			_ = s.circuitBreaker.OnFailure(ctx, definitionID, time.Now())
@@ -135,6 +148,14 @@ func (s ToolExecutorService) Execute(ctx context.Context, definitionID string, i
 		"name":          definition.Name,
 		"status_code":   response.StatusCode,
 		"response":      responseBody,
+		"cache_hit":     false,
+		"cache_key":     cacheKey,
+		"attempt_count": attemptCount,
+		"retry_reason":  retryReason,
+		"retry": map[string]any{
+			"attempt_count": attemptCount,
+			"reason":        retryReason,
+		},
 	}
 
 	outputBytes, err := json.Marshal(payload)
@@ -142,8 +163,13 @@ func (s ToolExecutorService) Execute(ctx context.Context, definitionID string, i
 		return domain.FunctionCallOutput{}, fmt.Errorf("failed to encode tool output: %w", err)
 	}
 
-	if cacheKey != "" && response.StatusCode >= 200 && response.StatusCode < 300 {
-		s.cacheRegistry.cacheFor(definitionID).Set(cacheKey, string(outputBytes), s.cacheTTL, time.Now())
+	if cacheEnabled && cacheKey != "" && response.StatusCode >= 200 && response.StatusCode < 300 {
+		s.cacheRegistry.cacheFor(definitionID, definition.Cache.MaxEntries).Set(
+			cacheKey,
+			string(outputBytes),
+			time.Duration(definition.Cache.TTLSeconds)*time.Second,
+			now,
+		)
 	}
 
 	return domain.FunctionCallOutput{
@@ -153,26 +179,29 @@ func (s ToolExecutorService) Execute(ctx context.Context, definitionID string, i
 	}, nil
 }
 
-func (s ToolExecutorService) doWithRetry(ctx context.Context, request *http.Request) (*http.Response, error) {
+func (s ToolExecutorService) doWithRetry(ctx context.Context, request *http.Request) (*http.Response, int, string, error) {
 	var lastErr error
+	lastReason := ""
 	for attempt := 1; attempt <= s.retryMaxAttempts; attempt++ {
 		if ctx.Err() != nil {
-			return nil, ctx.Err()
+			return nil, attempt, "context_cancelled", ctx.Err()
 		}
 
 		req := request.Clone(ctx)
 		response, err := s.client.Do(req)
 		if err == nil {
 			if !shouldRetryStatus(response.StatusCode) {
-				return response, nil
+				return response, attempt, lastReason, nil
 			}
 			lastErr = fmt.Errorf("status=%d", response.StatusCode)
+			lastReason = fmt.Sprintf("status_%d", response.StatusCode)
 			response.Body.Close()
 		} else {
 			lastErr = err
 			if !shouldRetryError(err) {
-				return nil, err
+				return nil, attempt, "non_retriable_error", err
 			}
+			lastReason = "transient_error"
 		}
 
 		if attempt == s.retryMaxAttempts {
@@ -184,11 +213,11 @@ func (s ToolExecutorService) doWithRetry(ctx context.Context, request *http.Requ
 		select {
 		case <-ctx.Done():
 			timer.Stop()
-			return nil, ctx.Err()
+			return nil, attempt, "context_cancelled", ctx.Err()
 		case <-timer.C:
 		}
 	}
-	return nil, lastErr
+	return nil, s.retryMaxAttempts, lastReason, lastErr
 }
 
 func shouldRetryStatus(status int) bool {
@@ -202,11 +231,11 @@ func shouldRetryError(err error) bool {
 	if err == nil {
 		return false
 	}
-	var netErr interface{ Timeout() bool }
-	if errors.As(err, &netErr) && netErr.Timeout() {
+	var netErr net.Error
+	if errors.As(err, &netErr) {
 		return true
 	}
-	return true
+	return false
 }
 
 func (s ToolExecutorService) backoffDelay(attempt int) time.Duration {
@@ -217,8 +246,44 @@ func (s ToolExecutorService) backoffDelay(attempt int) time.Duration {
 	return delay + jitter
 }
 
-func buildCacheKey(definitionID string, request *http.Request) string {
-	return fmt.Sprintf("%s|%s|%s", definitionID, request.Method, request.URL.String())
+func buildCacheKey(definitionID string, request *http.Request, arguments map[string]any, headers map[string]string) string {
+	argBytes, _ := json.Marshal(arguments)
+
+	relevantHeaderKeys := make([]string, 0, len(headers))
+	for key := range headers {
+		relevantHeaderKeys = append(relevantHeaderKeys, strings.ToLower(key))
+	}
+	sort.Strings(relevantHeaderKeys)
+
+	headerValues := make([]string, 0, len(relevantHeaderKeys))
+	for _, lowerKey := range relevantHeaderKeys {
+		headerValues = append(headerValues, lowerKey+"="+request.Header.Get(lowerKey))
+	}
+
+	return fmt.Sprintf(
+		"%s|%s|%s|%s|%s|%s",
+		definitionID,
+		request.Method,
+		request.URL.EscapedPath(),
+		request.URL.RawQuery,
+		string(argBytes),
+		strings.Join(headerValues, "&"),
+	)
+}
+
+func applyExecutionMetadata(output string, metadata map[string]any) (string, error) {
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(output), &payload); err != nil {
+		return "", err
+	}
+	for key, value := range metadata {
+		payload[key] = value
+	}
+	out, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
 }
 
 func buildHTTPRequest(ctx context.Context, definition domain.ToolDefinition, arguments map[string]any) (*http.Request, error) {

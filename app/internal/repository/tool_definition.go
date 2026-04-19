@@ -94,6 +94,9 @@ func (r *InMemoryToolDefinitionRepository) Patch(_ context.Context, id string, p
 	if patch.Parameters != nil {
 		definition.Parameters = *patch.Parameters
 	}
+	if patch.Cache != nil {
+		definition.Cache = *patch.Cache
+	}
 	if patch.Strict != nil {
 		definition.Strict = *patch.Strict
 	}

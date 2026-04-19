@@ -107,6 +107,11 @@ func (h ToolHandler) createTool(w http.ResponseWriter, r *http.Request) {
 			"url":     definition.URL,
 			"headers": definition.Headers,
 		},
+		"cache": map[string]any{
+			"enabled":     definition.Cache.Enabled,
+			"ttl_seconds": definition.Cache.TTLSeconds,
+			"max_entries": definition.Cache.MaxEntries,
+		},
 	})
 }
 
@@ -129,6 +134,11 @@ func (h ToolHandler) listDefinitions(w http.ResponseWriter, r *http.Request) {
 				"method":  definition.Method,
 				"url":     definition.URL,
 				"headers": definition.Headers,
+			},
+			"cache": map[string]any{
+				"enabled":     definition.Cache.Enabled,
+				"ttl_seconds": definition.Cache.TTLSeconds,
+				"max_entries": definition.Cache.MaxEntries,
 			},
 		})
 	}
@@ -168,6 +178,11 @@ func (h ToolHandler) getDefinitionByID(w http.ResponseWriter, r *http.Request) {
 			"method":  definition.Method,
 			"url":     definition.URL,
 			"headers": definition.Headers,
+		},
+		"cache": map[string]any{
+			"enabled":     definition.Cache.Enabled,
+			"ttl_seconds": definition.Cache.TTLSeconds,
+			"max_entries": definition.Cache.MaxEntries,
 		},
 	})
 }
@@ -337,6 +352,11 @@ func (h ToolHandler) patchDefinitionByID(w http.ResponseWriter, r *http.Request)
 			"method":  definition.Method,
 			"url":     definition.URL,
 			"headers": definition.Headers,
+		},
+		"cache": map[string]any{
+			"enabled":     definition.Cache.Enabled,
+			"ttl_seconds": definition.Cache.TTLSeconds,
+			"max_entries": definition.Cache.MaxEntries,
 		},
 	})
 }

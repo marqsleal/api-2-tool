@@ -52,13 +52,17 @@ func (r *SQLiteToolDefinitionRepository) Create(ctx context.Context, definition 
 	if err != nil {
 		return domain.ToolDefinition{}, fmt.Errorf("marshal parameters: %w", err)
 	}
+	cacheJSON, err := json.Marshal(definition.Cache)
+	if err != nil {
+		return domain.ToolDefinition{}, fmt.Errorf("marshal cache: %w", err)
+	}
 
 	definition.ID = "tool_" + uuid.NewString()
 	definition.Active = true
 	_, err = r.db.ExecContext(
 		ctx,
-		`INSERT INTO tool_definitions (id, name, description, method, url, headers_json, parameters_json, strict, active)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO tool_definitions (id, name, description, method, url, headers_json, parameters_json, cache_json, strict, active)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		definition.ID,
 		definition.Name,
 		definition.Description,
@@ -66,6 +70,7 @@ func (r *SQLiteToolDefinitionRepository) Create(ctx context.Context, definition 
 		definition.URL,
 		string(headersJSON),
 		string(parametersJSON),
+		string(cacheJSON),
 		boolToInt(definition.Strict),
 		boolToInt(definition.Active),
 	)
@@ -80,6 +85,7 @@ func (r *SQLiteToolDefinitionRepository) List(ctx context.Context) ([]domain.Too
 	rows, err := r.db.QueryContext(
 		ctx,
 		`SELECT id, name, description, method, url, headers_json, parameters_json, strict, active
+		 , cache_json
 		 FROM tool_definitions
 		 WHERE active = 1
 		 ORDER BY internal_id ASC`,
@@ -109,6 +115,7 @@ func (r *SQLiteToolDefinitionRepository) GetByID(ctx context.Context, id string)
 	row := r.db.QueryRowContext(
 		ctx,
 		`SELECT id, name, description, method, url, headers_json, parameters_json, strict, active
+		 , cache_json
 		 FROM tool_definitions
 		 WHERE id = ? AND active = 1`,
 		id,
@@ -126,8 +133,8 @@ func (r *SQLiteToolDefinitionRepository) GetByID(ctx context.Context, id string)
 }
 
 func (r *SQLiteToolDefinitionRepository) Patch(ctx context.Context, id string, patch domain.ToolDefinitionPatch) (domain.ToolDefinition, bool, error) {
-	setClauses := make([]string, 0, 7)
-	args := make([]any, 0, 8)
+	setClauses := make([]string, 0, 8)
+	args := make([]any, 0, 9)
 
 	if patch.Name != nil {
 		setClauses = append(setClauses, "name = ?")
@@ -160,6 +167,14 @@ func (r *SQLiteToolDefinitionRepository) Patch(ctx context.Context, id string, p
 		}
 		setClauses = append(setClauses, "parameters_json = ?")
 		args = append(args, string(parametersJSON))
+	}
+	if patch.Cache != nil {
+		cacheJSON, err := json.Marshal(*patch.Cache)
+		if err != nil {
+			return domain.ToolDefinition{}, false, fmt.Errorf("marshal cache: %w", err)
+		}
+		setClauses = append(setClauses, "cache_json = ?")
+		args = append(args, string(cacheJSON))
 	}
 	if patch.Strict != nil {
 		setClauses = append(setClauses, "strict = ?")
@@ -227,6 +242,7 @@ func scanDefinition(s scanner) (domain.ToolDefinition, error) {
 		definition     domain.ToolDefinition
 		headersJSON    string
 		parametersJSON string
+		cacheJSON      string
 		strictInt      int
 		activeInt      int
 	)
@@ -241,6 +257,7 @@ func scanDefinition(s scanner) (domain.ToolDefinition, error) {
 		&parametersJSON,
 		&strictInt,
 		&activeInt,
+		&cacheJSON,
 	)
 	if err != nil {
 		return domain.ToolDefinition{}, err
@@ -251,6 +268,11 @@ func scanDefinition(s scanner) (domain.ToolDefinition, error) {
 	}
 	if err := json.Unmarshal([]byte(parametersJSON), &definition.Parameters); err != nil {
 		return domain.ToolDefinition{}, fmt.Errorf("unmarshal parameters: %w", err)
+	}
+	if cacheJSON != "" {
+		if err := json.Unmarshal([]byte(cacheJSON), &definition.Cache); err != nil {
+			return domain.ToolDefinition{}, fmt.Errorf("unmarshal cache: %w", err)
+		}
 	}
 
 	definition.Strict = strictInt == 1
@@ -269,6 +291,7 @@ CREATE TABLE IF NOT EXISTS tool_definitions (
 	url TEXT NOT NULL,
 	headers_json TEXT NOT NULL,
 	parameters_json TEXT NOT NULL,
+	cache_json TEXT NOT NULL DEFAULT '{"enabled":false,"ttl_seconds":30,"max_entries":128}',
 	strict INTEGER NOT NULL DEFAULT 0,
 	active INTEGER NOT NULL DEFAULT 1
 );`)
@@ -288,6 +311,18 @@ CREATE TABLE IF NOT EXISTS tool_definitions (
 
 	if _, err := r.db.Exec("UPDATE tool_definitions SET active = 1 WHERE active IS NULL"); err != nil {
 		return fmt.Errorf("normalize active column: %w", err)
+	}
+	hasCacheColumn, err := r.hasColumn("tool_definitions", "cache_json")
+	if err != nil {
+		return err
+	}
+	if !hasCacheColumn {
+		if _, err := r.db.Exec(`ALTER TABLE tool_definitions ADD COLUMN cache_json TEXT NOT NULL DEFAULT '{"enabled":false,"ttl_seconds":30,"max_entries":128}'`); err != nil {
+			return fmt.Errorf("add cache_json column: %w", err)
+		}
+	}
+	if _, err := r.db.Exec(`UPDATE tool_definitions SET cache_json = '{"enabled":false,"ttl_seconds":30,"max_entries":128}' WHERE cache_json IS NULL OR cache_json = ''`); err != nil {
+		return fmt.Errorf("normalize cache_json column: %w", err)
 	}
 
 	return nil

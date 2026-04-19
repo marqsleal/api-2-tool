@@ -253,7 +253,7 @@ func (f fakeScanner) Scan(dest ...any) error {
 }
 
 func TestScanDefinition(t *testing.T) {
-	okScanner := fakeScanner{values: []any{"id", "name", "desc", "GET", "https://x", `{"k":"v"}`, `{"p":1}`, 1, 1}}
+	okScanner := fakeScanner{values: []any{"id", "name", "desc", "GET", "https://x", `{"k":"v"}`, `{"p":1}`, 1, 1, `{"enabled":true,"ttl_seconds":10,"max_entries":5}`}}
 	def, err := scanDefinition(okScanner)
 	if err != nil {
 		t.Fatalf("unexpected scanDefinition error: %v", err)
@@ -266,11 +266,11 @@ func TestScanDefinition(t *testing.T) {
 		t.Fatalf("expected scan error")
 	}
 
-	if _, err := scanDefinition(fakeScanner{values: []any{"id", "name", "desc", "GET", "https://x", `bad`, `{"p":1}`, 1, 1}}); err == nil {
+	if _, err := scanDefinition(fakeScanner{values: []any{"id", "name", "desc", "GET", "https://x", `bad`, `{"p":1}`, 1, 1, `{"enabled":false,"ttl_seconds":30,"max_entries":128}`}}); err == nil {
 		t.Fatalf("expected headers unmarshal error")
 	}
 
-	if _, err := scanDefinition(fakeScanner{values: []any{"id", "name", "desc", "GET", "https://x", `{"k":"v"}`, `bad`, 1, 1}}); err == nil {
+	if _, err := scanDefinition(fakeScanner{values: []any{"id", "name", "desc", "GET", "https://x", `{"k":"v"}`, `bad`, 1, 1, `{"enabled":false,"ttl_seconds":30,"max_entries":128}`}}); err == nil {
 		t.Fatalf("expected parameters unmarshal error")
 	}
 }

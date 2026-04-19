@@ -19,6 +19,15 @@ func newToolHandlerForTest() ToolHandler {
 	return NewToolHandler(defSvc, execSvc, nil)
 }
 
+func newToolHandlerWithJobsForTest() ToolHandler {
+	repo := repository.NewInMemoryToolDefinitionRepository()
+	defSvc := service.NewToolDefinitionService(repo)
+	execSvc := service.NewToolExecutorService(defSvc)
+	jobRepo := repository.NewInMemoryToolJobRepository()
+	jobSvc := service.NewToolJobService(jobRepo, execSvc)
+	return NewToolHandler(defSvc, execSvc, &jobSvc)
+}
+
 func doReq(t *testing.T, h http.Handler, method string, path string, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	rr := httptest.NewRecorder()
@@ -180,5 +189,34 @@ func TestToolHandlerNotFoundAndInvalidExecutePath(t *testing.T) {
 	rr = doReq(t, h, http.MethodPost, "/tool/execute/tool_missing", `{"call_id":"c","arguments":{}}`)
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("expected execute missing 404, got %d", rr.Code)
+	}
+}
+
+func TestToolHandlerJobEndpoints(t *testing.T) {
+	h := newToolHandlerWithJobsForTest()
+	id := createToolAndID(t, h, "https://example.com")
+
+	rr := doReq(t, h, http.MethodPost, "/tool/execute/"+id+"/jobs", `{"call_id":"jc1","arguments":{"x":"y"}}`)
+	if rr.Code != http.StatusAccepted {
+		t.Fatalf("expected 202 enqueue, got %d body=%s", rr.Code, rr.Body.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("invalid enqueue payload: %v", err)
+	}
+	jobID, _ := payload["job_id"].(string)
+	if jobID == "" {
+		t.Fatalf("expected job_id")
+	}
+
+	rr = doReq(t, h, http.MethodGet, "/tool/jobs/"+jobID, "")
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 get job, got %d", rr.Code)
+	}
+
+	rr = doReq(t, h, http.MethodGet, "/tool/jobs/missing", "")
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 get missing job, got %d", rr.Code)
 	}
 }

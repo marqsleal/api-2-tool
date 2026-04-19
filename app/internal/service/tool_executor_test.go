@@ -180,6 +180,11 @@ func TestToolExecutorRetryAndCache(t *testing.T) {
 		Name:   "retry_cache",
 		Method: "GET",
 		URL:    upstream.URL + "/search",
+		Cache: domain.ToolCacheConfig{
+			Enabled:    true,
+			TTLSeconds: 60,
+			MaxEntries: 32,
+		},
 		Active: true,
 	}
 
@@ -197,6 +202,51 @@ func TestToolExecutorRetryAndCache(t *testing.T) {
 	}
 	if got := atomic.LoadInt32(&calls); got != 3 {
 		t.Fatalf("expected cached response without new upstream call, got %d", got)
+	}
+}
+
+func TestToolExecutorCacheExpiration(t *testing.T) {
+	repo := newTestRepo()
+	defSvc := NewToolDefinitionService(repo)
+	execSvc := NewToolExecutorService(defSvc)
+
+	var calls int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer upstream.Close()
+
+	repo.items["tool_cache_exp"] = domain.ToolDefinition{
+		ID:     "tool_cache_exp",
+		Name:   "cache_exp",
+		Method: "GET",
+		URL:    upstream.URL + "/x",
+		Cache: domain.ToolCacheConfig{
+			Enabled:    true,
+			TTLSeconds: 1,
+			MaxEntries: 32,
+		},
+		Active: true,
+	}
+
+	if _, err := execSvc.Execute(context.Background(), "tool_cache_exp", ExecuteToolInput{}); err != nil {
+		t.Fatalf("unexpected first execute error: %v", err)
+	}
+	if _, err := execSvc.Execute(context.Background(), "tool_cache_exp", ExecuteToolInput{}); err != nil {
+		t.Fatalf("unexpected cached execute error: %v", err)
+	}
+	if got := atomic.LoadInt32(&calls); got != 1 {
+		t.Fatalf("expected single upstream call before expiration, got %d", got)
+	}
+
+	time.Sleep(1200 * time.Millisecond)
+	if _, err := execSvc.Execute(context.Background(), "tool_cache_exp", ExecuteToolInput{}); err != nil {
+		t.Fatalf("unexpected execute after expiration error: %v", err)
+	}
+	if got := atomic.LoadInt32(&calls); got != 2 {
+		t.Fatalf("expected second upstream call after expiration, got %d", got)
 	}
 }
 

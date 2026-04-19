@@ -11,23 +11,25 @@ import (
 )
 
 type ToolDefinitionInput struct {
-	Name        string            `json:"name"`
-	Description string            `json:"description"`
-	Method      string            `json:"method"`
-	URL         string            `json:"url"`
-	Headers     map[string]string `json:"headers"`
-	Parameters  map[string]any    `json:"parameters"`
-	Strict      bool              `json:"strict"`
+	Name        string                  `json:"name"`
+	Description string                  `json:"description"`
+	Method      string                  `json:"method"`
+	URL         string                  `json:"url"`
+	Headers     map[string]string       `json:"headers"`
+	Parameters  map[string]any          `json:"parameters"`
+	Cache       *domain.ToolCacheConfig `json:"cache,omitempty"`
+	Strict      bool                    `json:"strict"`
 }
 
 type ToolDefinitionPatchInput struct {
-	Name        *string            `json:"name"`
-	Description *string            `json:"description"`
-	Method      *string            `json:"method"`
-	URL         *string            `json:"url"`
-	Headers     *map[string]string `json:"headers"`
-	Parameters  *map[string]any    `json:"parameters"`
-	Strict      *bool              `json:"strict"`
+	Name        *string                 `json:"name"`
+	Description *string                 `json:"description"`
+	Method      *string                 `json:"method"`
+	URL         *string                 `json:"url"`
+	Headers     *map[string]string      `json:"headers"`
+	Parameters  *map[string]any         `json:"parameters"`
+	Cache       *domain.ToolCacheConfig `json:"cache,omitempty"`
+	Strict      *bool                   `json:"strict"`
 }
 
 type ToolDefinitionService struct {
@@ -62,6 +64,7 @@ func (s ToolDefinitionService) Create(ctx context.Context, input ToolDefinitionI
 		URL:         input.URL,
 		Headers:     input.Headers,
 		Parameters:  parameters,
+		Cache:       defaultCacheConfig(input.Cache),
 		Strict:      input.Strict,
 		Active:      true,
 	}
@@ -99,6 +102,7 @@ func (s ToolDefinitionService) Patch(ctx context.Context, id string, input ToolD
 		input.URL == nil &&
 		input.Headers == nil &&
 		input.Parameters == nil &&
+		input.Cache == nil &&
 		input.Strict == nil {
 		return domain.ToolDefinition{}, ErrDefinitionPatchEmpty
 	}
@@ -109,6 +113,7 @@ func (s ToolDefinitionService) Patch(ctx context.Context, id string, input ToolD
 		URL:         input.URL,
 		Headers:     input.Headers,
 		Parameters:  input.Parameters,
+		Cache:       input.Cache,
 		Strict:      input.Strict,
 	}
 
@@ -136,6 +141,26 @@ func (s ToolDefinitionService) Patch(ctx context.Context, id string, input ToolD
 	}
 
 	return definition, nil
+}
+
+func defaultCacheConfig(input *domain.ToolCacheConfig) domain.ToolCacheConfig {
+	config := domain.ToolCacheConfig{
+		Enabled:    false,
+		TTLSeconds: 30,
+		MaxEntries: 128,
+	}
+	if input == nil {
+		return config
+	}
+
+	config.Enabled = input.Enabled
+	if input.TTLSeconds > 0 {
+		config.TTLSeconds = input.TTLSeconds
+	}
+	if input.MaxEntries > 0 {
+		config.MaxEntries = input.MaxEntries
+	}
+	return config
 }
 
 func (s ToolDefinitionService) Deactivate(ctx context.Context, id string) error {

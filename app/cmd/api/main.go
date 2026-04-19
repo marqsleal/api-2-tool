@@ -56,6 +56,7 @@ func main() {
 	circuitBreakerService := service.NewCircuitBreakerService(circuitBreakerRepository, 5, 30*time.Second, 2)
 	toolExecutorService := service.NewToolExecutorServiceWithOptions(toolDefinitionService, &circuitBreakerService, nil)
 	toolJobService := service.NewToolJobService(toolJobRepository, toolExecutorService)
+	toolJobService.SetRetention(cfg.JobRetention)
 	toolHandler := handler.NewToolHandler(toolDefinitionService, toolExecutorService, &toolJobService)
 	openAPISpecHandler := handler.NewOpenAPISpecHandler(cfg.OpenAPISpecPath)
 	swaggerUIHandler := handler.NewSwaggerUIHandler("/swagger/doc.yaml")
@@ -70,7 +71,7 @@ func main() {
 	serverErr := make(chan error, 1)
 	workerCtx, workerCancel := context.WithCancel(context.Background())
 	defer workerCancel()
-	if err := toolJobService.StartWorkers(workerCtx, 3); err != nil {
+	if err := toolJobService.StartWorkers(workerCtx, cfg.JobWorkerCount); err != nil {
 		log.Fatalf("failed to start job workers: %v", err)
 	}
 	go func() {

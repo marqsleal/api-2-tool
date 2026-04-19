@@ -78,6 +78,9 @@ func (r *testRepo) Patch(_ context.Context, id string, patch domain.ToolDefiniti
 	if patch.Parameters != nil {
 		item.Parameters = *patch.Parameters
 	}
+	if patch.Cache != nil {
+		item.Cache = *patch.Cache
+	}
 	if patch.Strict != nil {
 		item.Strict = *patch.Strict
 	}
@@ -118,6 +121,12 @@ func TestToolDefinitionServiceCreateAndDefaults(t *testing.T) {
 	}
 	if created.Parameters == nil {
 		t.Fatalf("expected default parameters")
+	}
+	if created.Cache.Enabled {
+		t.Fatalf("cache should be disabled by default")
+	}
+	if created.Cache.TTLSeconds <= 0 || created.Cache.MaxEntries <= 0 {
+		t.Fatalf("expected positive cache defaults")
 	}
 }
 

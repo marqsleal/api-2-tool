@@ -105,10 +105,13 @@ func (r *SQLiteToolJobRepository) ClaimNextPending(ctx context.Context, now time
 		ctx,
 		`SELECT id, definition_id, call_id, arguments_json, status, attempt, max_attempts, next_run_at_unix, lease_until_unix, result_json, error_message, created_at_unix, updated_at_unix
 		 FROM tool_jobs
-		 WHERE status = ? AND next_run_at_unix <= ?
+		 WHERE (status = ? AND next_run_at_unix <= ?)
+		    OR (status = ? AND lease_until_unix > 0 AND lease_until_unix <= ?)
 		 ORDER BY created_at_unix ASC
 		 LIMIT 1`,
 		string(domain.JobPending),
+		now.UTC().Unix(),
+		string(domain.JobRunning),
 		now.UTC().Unix(),
 	)
 
@@ -125,12 +128,14 @@ func (r *SQLiteToolJobRepository) ClaimNextPending(ctx context.Context, now time
 		ctx,
 		`UPDATE tool_jobs
 		 SET status = ?, attempt = attempt + 1, lease_until_unix = ?, updated_at_unix = ?
-		 WHERE id = ? AND status = ?`,
+		 WHERE id = ? AND (status = ? OR (status = ? AND lease_until_unix > 0 AND lease_until_unix <= ?))`,
 		string(domain.JobRunning),
 		leaseUntil,
 		now.UTC().Unix(),
 		job.ID,
 		string(domain.JobPending),
+		string(domain.JobRunning),
+		now.UTC().Unix(),
 	)
 	if err != nil {
 		return domain.ToolJob{}, false, fmt.Errorf("claim job: %w", err)
@@ -202,6 +207,21 @@ func (r *SQLiteToolJobRepository) MarkFailed(ctx context.Context, jobID string, 
 	)
 	if err != nil {
 		return fmt.Errorf("mark failed: %w", err)
+	}
+	return nil
+}
+
+func (r *SQLiteToolJobRepository) DeleteTerminalOlderThan(ctx context.Context, threshold time.Time) error {
+	_, err := r.db.ExecContext(
+		ctx,
+		`DELETE FROM tool_jobs
+		 WHERE (status = ? OR status = ?) AND updated_at_unix < ?`,
+		string(domain.JobSucceeded),
+		string(domain.JobFailed),
+		threshold.UTC().Unix(),
+	)
+	if err != nil {
+		return fmt.Errorf("delete old terminal jobs: %w", err)
 	}
 	return nil
 }

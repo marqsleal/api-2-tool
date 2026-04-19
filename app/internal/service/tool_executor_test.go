@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -12,7 +13,7 @@ import (
 )
 
 func TestBuildHTTPRequestAndParseBody(t *testing.T) {
-	getReq, err := buildHTTPRequest(domain.ToolDefinition{Method: "GET", URL: "https://example.com/path"}, map[string]any{"a": 1})
+	getReq, err := buildHTTPRequest(context.Background(), domain.ToolDefinition{Method: "GET", URL: "https://example.com/path"}, map[string]any{"a": 1})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -21,6 +22,7 @@ func TestBuildHTTPRequestAndParseBody(t *testing.T) {
 	}
 
 	templatedReq, err := buildHTTPRequest(
+		context.Background(),
 		domain.ToolDefinition{Method: "GET", URL: "https://example.com/ws/{cep}/json/"},
 		map[string]any{"cep": "01001000", "extra": "x"},
 	)
@@ -38,13 +40,14 @@ func TestBuildHTTPRequestAndParseBody(t *testing.T) {
 	}
 
 	if _, err := buildHTTPRequest(
+		context.Background(),
 		domain.ToolDefinition{Method: "GET", URL: "https://example.com/ws/{cep}/json/"},
 		map[string]any{"other": "x"},
 	); err == nil {
 		t.Fatalf("expected missing placeholder argument error")
 	}
 
-	postReq, err := buildHTTPRequest(domain.ToolDefinition{Method: "POST", URL: "https://example.com/path"}, map[string]any{"x": "y"})
+	postReq, err := buildHTTPRequest(context.Background(), domain.ToolDefinition{Method: "POST", URL: "https://example.com/path"}, map[string]any{"x": "y"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -52,12 +55,12 @@ func TestBuildHTTPRequestAndParseBody(t *testing.T) {
 		t.Fatalf("expected content-type header")
 	}
 
-	if _, err := buildHTTPRequest(domain.ToolDefinition{Method: "GET", URL: "::://bad"}, nil); err == nil {
+	if _, err := buildHTTPRequest(context.Background(), domain.ToolDefinition{Method: "GET", URL: "::://bad"}, nil); err == nil {
 		t.Fatalf("expected invalid url error")
 	}
 
 	badArgs := map[string]any{"bad": make(chan int)}
-	if _, err := buildHTTPRequest(domain.ToolDefinition{Method: "POST", URL: "https://example.com"}, badArgs); err == nil {
+	if _, err := buildHTTPRequest(context.Background(), domain.ToolDefinition{Method: "POST", URL: "https://example.com"}, badArgs); err == nil {
 		t.Fatalf("expected marshal error")
 	}
 
@@ -79,12 +82,12 @@ func TestToolExecutorExecuteScenarios(t *testing.T) {
 	defSvc := NewToolDefinitionService(repo)
 	execSvc := NewToolExecutorService(defSvc)
 
-	if _, err := execSvc.Execute("missing", ExecuteToolInput{}); !errors.Is(err, ErrDefinitionNotFound) {
+	if _, err := execSvc.Execute(context.Background(), "missing", ExecuteToolInput{}); !errors.Is(err, ErrDefinitionNotFound) {
 		t.Fatalf("expected not found error, got %v", err)
 	}
 
 	repo.getErr = errors.New("db")
-	if _, err := execSvc.Execute("x", ExecuteToolInput{}); err == nil {
+	if _, err := execSvc.Execute(context.Background(), "x", ExecuteToolInput{}); err == nil {
 		t.Fatalf("expected get error")
 	}
 	repo.getErr = nil
@@ -113,7 +116,7 @@ func TestToolExecutorExecuteScenarios(t *testing.T) {
 		Active:  true,
 	}
 
-	out, err := execSvc.Execute("tool_get", ExecuteToolInput{CallID: "c1", Arguments: map[string]any{"cep": "01001000"}})
+	out, err := execSvc.Execute(context.Background(), "tool_get", ExecuteToolInput{CallID: "c1", Arguments: map[string]any{"cep": "01001000"}})
 	if err != nil {
 		t.Fatalf("unexpected execute error: %v", err)
 	}
@@ -141,12 +144,12 @@ func TestToolExecutorExecuteScenarios(t *testing.T) {
 	defer postUpstream.Close()
 
 	repo.items["tool_post"] = domain.ToolDefinition{ID: "tool_post", Name: "post", Method: "POST", URL: postUpstream.URL, Active: true}
-	if _, err := execSvc.Execute("tool_post", ExecuteToolInput{Arguments: map[string]any{"x": "y"}}); err != nil {
+	if _, err := execSvc.Execute(context.Background(), "tool_post", ExecuteToolInput{Arguments: map[string]any{"x": "y"}}); err != nil {
 		t.Fatalf("unexpected post execute error: %v", err)
 	}
 
 	repo.items["tool_down"] = domain.ToolDefinition{ID: "tool_down", Name: "down", Method: "GET", URL: "http://127.0.0.1:1", Active: true}
-	if _, err := execSvc.Execute("tool_down", ExecuteToolInput{}); err == nil || !strings.Contains(err.Error(), "upstream request failed") {
+	if _, err := execSvc.Execute(context.Background(), "tool_down", ExecuteToolInput{}); err == nil || !strings.Contains(err.Error(), "upstream request failed") {
 		t.Fatalf("expected upstream error, got %v", err)
 	}
 }

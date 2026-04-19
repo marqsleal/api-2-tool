@@ -179,7 +179,7 @@ func (h ToolHandler) executeTool(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("tool execute started id=%s call_id=%q", id, input.CallID)
 
-	output, err := h.executorService.Execute(id, input)
+	output, err := h.executorService.Execute(r.Context(), id, input)
 	if err != nil {
 		if errors.Is(err, service.ErrDefinitionNotFound) {
 			log.Printf("tool execute not found id=%s", id)

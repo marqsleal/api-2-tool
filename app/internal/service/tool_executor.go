@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -33,7 +34,7 @@ func NewToolExecutorService(definitionService ToolDefinitionService) ToolExecuto
 	}
 }
 
-func (s ToolExecutorService) Execute(definitionID string, input ExecuteToolInput) (domain.FunctionCallOutput, error) {
+func (s ToolExecutorService) Execute(ctx context.Context, definitionID string, input ExecuteToolInput) (domain.FunctionCallOutput, error) {
 	definition, ok, err := s.definitionService.GetByID(definitionID)
 	if err != nil {
 		return domain.FunctionCallOutput{}, err
@@ -42,7 +43,7 @@ func (s ToolExecutorService) Execute(definitionID string, input ExecuteToolInput
 		return domain.FunctionCallOutput{}, ErrDefinitionNotFound
 	}
 
-	request, err := buildHTTPRequest(definition, input.Arguments)
+	request, err := buildHTTPRequest(ctx, definition, input.Arguments)
 	if err != nil {
 		return domain.FunctionCallOutput{}, err
 	}
@@ -82,7 +83,11 @@ func (s ToolExecutorService) Execute(definitionID string, input ExecuteToolInput
 	}, nil
 }
 
-func buildHTTPRequest(definition domain.ToolDefinition, arguments map[string]any) (*http.Request, error) {
+func buildHTTPRequest(ctx context.Context, definition domain.ToolDefinition, arguments map[string]any) (*http.Request, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	if arguments == nil {
 		arguments = map[string]any{}
 	}
@@ -112,7 +117,7 @@ func buildHTTPRequest(definition domain.ToolDefinition, arguments map[string]any
 		}
 		parsedURL.RawQuery = query.Encode()
 
-		return http.NewRequest(method, parsedURL.String(), nil)
+		return http.NewRequestWithContext(ctx, method, parsedURL.String(), nil)
 	}
 
 	bodyBytes, err := json.Marshal(normalizedArgs)
@@ -120,7 +125,7 @@ func buildHTTPRequest(definition domain.ToolDefinition, arguments map[string]any
 		return nil, fmt.Errorf("invalid arguments body: %w", err)
 	}
 
-	request, err := http.NewRequest(method, resolvedURL, bytes.NewReader(bodyBytes))
+	request, err := http.NewRequestWithContext(ctx, method, resolvedURL, bytes.NewReader(bodyBytes))
 	if err != nil {
 		return nil, err
 	}

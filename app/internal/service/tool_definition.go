@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -40,7 +41,7 @@ func NewToolDefinitionService(repository repository.ToolDefinitionRepository) To
 	return ToolDefinitionService{repository: repository}
 }
 
-func (s ToolDefinitionService) Create(input ToolDefinitionInput) (domain.ToolDefinition, error) {
+func (s ToolDefinitionService) Create(ctx context.Context, input ToolDefinitionInput) (domain.ToolDefinition, error) {
 	method := strings.ToUpper(strings.TrimSpace(input.Method))
 	if input.Name == "" || method == "" || input.URL == "" {
 		return domain.ToolDefinition{}, errors.New("name, method and url are required")
@@ -65,7 +66,7 @@ func (s ToolDefinitionService) Create(input ToolDefinitionInput) (domain.ToolDef
 		Active:      true,
 	}
 
-	created, err := s.repository.Create(definition)
+	created, err := s.repository.Create(ctx, definition)
 	if err != nil {
 		return domain.ToolDefinition{}, fmt.Errorf("create definition: %w", err)
 	}
@@ -73,8 +74,8 @@ func (s ToolDefinitionService) Create(input ToolDefinitionInput) (domain.ToolDef
 	return created, nil
 }
 
-func (s ToolDefinitionService) List() ([]domain.ToolDefinition, error) {
-	definitions, err := s.repository.List()
+func (s ToolDefinitionService) List(ctx context.Context) ([]domain.ToolDefinition, error) {
+	definitions, err := s.repository.List(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list definitions: %w", err)
 	}
@@ -82,8 +83,8 @@ func (s ToolDefinitionService) List() ([]domain.ToolDefinition, error) {
 	return definitions, nil
 }
 
-func (s ToolDefinitionService) GetByID(id string) (domain.ToolDefinition, bool, error) {
-	definition, ok, err := s.repository.GetByID(id)
+func (s ToolDefinitionService) GetByID(ctx context.Context, id string) (domain.ToolDefinition, bool, error) {
+	definition, ok, err := s.repository.GetByID(ctx, id)
 	if err != nil {
 		return domain.ToolDefinition{}, false, fmt.Errorf("get definition by id: %w", err)
 	}
@@ -91,7 +92,7 @@ func (s ToolDefinitionService) GetByID(id string) (domain.ToolDefinition, bool, 
 	return definition, ok, nil
 }
 
-func (s ToolDefinitionService) Patch(id string, input ToolDefinitionPatchInput) (domain.ToolDefinition, error) {
+func (s ToolDefinitionService) Patch(ctx context.Context, id string, input ToolDefinitionPatchInput) (domain.ToolDefinition, error) {
 	if input.Name == nil &&
 		input.Description == nil &&
 		input.Method == nil &&
@@ -126,7 +127,7 @@ func (s ToolDefinitionService) Patch(id string, input ToolDefinitionPatchInput) 
 		return domain.ToolDefinition{}, errors.New("url cannot be empty")
 	}
 
-	definition, ok, err := s.repository.Patch(id, patch)
+	definition, ok, err := s.repository.Patch(ctx, id, patch)
 	if err != nil {
 		return domain.ToolDefinition{}, fmt.Errorf("patch definition: %w", err)
 	}
@@ -137,8 +138,8 @@ func (s ToolDefinitionService) Patch(id string, input ToolDefinitionPatchInput) 
 	return definition, nil
 }
 
-func (s ToolDefinitionService) Deactivate(id string) error {
-	ok, err := s.repository.Deactivate(id)
+func (s ToolDefinitionService) Deactivate(ctx context.Context, id string) error {
+	ok, err := s.repository.Deactivate(ctx, id)
 	if err != nil {
 		return fmt.Errorf("deactivate definition: %w", err)
 	}

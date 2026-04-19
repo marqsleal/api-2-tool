@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -41,7 +42,7 @@ func (r *SQLiteToolDefinitionRepository) Close() error {
 	return r.db.Close()
 }
 
-func (r *SQLiteToolDefinitionRepository) Create(definition domain.ToolDefinition) (domain.ToolDefinition, error) {
+func (r *SQLiteToolDefinitionRepository) Create(ctx context.Context, definition domain.ToolDefinition) (domain.ToolDefinition, error) {
 	headersJSON, err := json.Marshal(definition.Headers)
 	if err != nil {
 		return domain.ToolDefinition{}, fmt.Errorf("marshal headers: %w", err)
@@ -54,7 +55,8 @@ func (r *SQLiteToolDefinitionRepository) Create(definition domain.ToolDefinition
 
 	definition.ID = "tool_" + uuid.NewString()
 	definition.Active = true
-	_, err = r.db.Exec(
+	_, err = r.db.ExecContext(
+		ctx,
 		`INSERT INTO tool_definitions (id, name, description, method, url, headers_json, parameters_json, strict, active)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		definition.ID,
@@ -74,8 +76,9 @@ func (r *SQLiteToolDefinitionRepository) Create(definition domain.ToolDefinition
 	return definition, nil
 }
 
-func (r *SQLiteToolDefinitionRepository) List() ([]domain.ToolDefinition, error) {
-	rows, err := r.db.Query(
+func (r *SQLiteToolDefinitionRepository) List(ctx context.Context) ([]domain.ToolDefinition, error) {
+	rows, err := r.db.QueryContext(
+		ctx,
 		`SELECT id, name, description, method, url, headers_json, parameters_json, strict, active
 		 FROM tool_definitions
 		 WHERE active = 1
@@ -102,8 +105,9 @@ func (r *SQLiteToolDefinitionRepository) List() ([]domain.ToolDefinition, error)
 	return definitions, nil
 }
 
-func (r *SQLiteToolDefinitionRepository) GetByID(id string) (domain.ToolDefinition, bool, error) {
-	row := r.db.QueryRow(
+func (r *SQLiteToolDefinitionRepository) GetByID(ctx context.Context, id string) (domain.ToolDefinition, bool, error) {
+	row := r.db.QueryRowContext(
+		ctx,
 		`SELECT id, name, description, method, url, headers_json, parameters_json, strict, active
 		 FROM tool_definitions
 		 WHERE id = ? AND active = 1`,
@@ -121,7 +125,7 @@ func (r *SQLiteToolDefinitionRepository) GetByID(id string) (domain.ToolDefiniti
 	return definition, true, nil
 }
 
-func (r *SQLiteToolDefinitionRepository) Patch(id string, patch domain.ToolDefinitionPatch) (domain.ToolDefinition, bool, error) {
+func (r *SQLiteToolDefinitionRepository) Patch(ctx context.Context, id string, patch domain.ToolDefinitionPatch) (domain.ToolDefinition, bool, error) {
 	setClauses := make([]string, 0, 7)
 	args := make([]any, 0, 8)
 
@@ -172,7 +176,7 @@ func (r *SQLiteToolDefinitionRepository) Patch(id string, patch domain.ToolDefin
 	)
 	args = append(args, id)
 
-	result, err := r.db.Exec(query, args...)
+	result, err := r.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return domain.ToolDefinition{}, false, fmt.Errorf("update definition: %w", err)
 	}
@@ -185,7 +189,7 @@ func (r *SQLiteToolDefinitionRepository) Patch(id string, patch domain.ToolDefin
 		return domain.ToolDefinition{}, false, nil
 	}
 
-	definition, ok, err := r.GetByID(id)
+	definition, ok, err := r.GetByID(ctx, id)
 	if err != nil {
 		return domain.ToolDefinition{}, false, err
 	}
@@ -196,8 +200,9 @@ func (r *SQLiteToolDefinitionRepository) Patch(id string, patch domain.ToolDefin
 	return definition, true, nil
 }
 
-func (r *SQLiteToolDefinitionRepository) Deactivate(id string) (bool, error) {
-	result, err := r.db.Exec(
+func (r *SQLiteToolDefinitionRepository) Deactivate(ctx context.Context, id string) (bool, error) {
+	result, err := r.db.ExecContext(
+		ctx,
 		"UPDATE tool_definitions SET active = 0 WHERE id = ? AND active = 1",
 		id,
 	)

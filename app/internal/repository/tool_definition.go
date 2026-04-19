@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -8,11 +9,11 @@ import (
 )
 
 type ToolDefinitionRepository interface {
-	Create(definition domain.ToolDefinition) (domain.ToolDefinition, error)
-	List() ([]domain.ToolDefinition, error)
-	GetByID(id string) (domain.ToolDefinition, bool, error)
-	Patch(id string, patch domain.ToolDefinitionPatch) (domain.ToolDefinition, bool, error)
-	Deactivate(id string) (bool, error)
+	Create(ctx context.Context, definition domain.ToolDefinition) (domain.ToolDefinition, error)
+	List(ctx context.Context) ([]domain.ToolDefinition, error)
+	GetByID(ctx context.Context, id string) (domain.ToolDefinition, bool, error)
+	Patch(ctx context.Context, id string, patch domain.ToolDefinitionPatch) (domain.ToolDefinition, bool, error)
+	Deactivate(ctx context.Context, id string) (bool, error)
 }
 
 type InMemoryToolDefinitionRepository struct {
@@ -27,7 +28,7 @@ func NewInMemoryToolDefinitionRepository() *InMemoryToolDefinitionRepository {
 	}
 }
 
-func (r *InMemoryToolDefinitionRepository) Create(definition domain.ToolDefinition) (domain.ToolDefinition, error) {
+func (r *InMemoryToolDefinitionRepository) Create(_ context.Context, definition domain.ToolDefinition) (domain.ToolDefinition, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -39,7 +40,7 @@ func (r *InMemoryToolDefinitionRepository) Create(definition domain.ToolDefiniti
 	return definition, nil
 }
 
-func (r *InMemoryToolDefinitionRepository) List() ([]domain.ToolDefinition, error) {
+func (r *InMemoryToolDefinitionRepository) List(_ context.Context) ([]domain.ToolDefinition, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -54,7 +55,7 @@ func (r *InMemoryToolDefinitionRepository) List() ([]domain.ToolDefinition, erro
 	return definitions, nil
 }
 
-func (r *InMemoryToolDefinitionRepository) GetByID(id string) (domain.ToolDefinition, bool, error) {
+func (r *InMemoryToolDefinitionRepository) GetByID(_ context.Context, id string) (domain.ToolDefinition, bool, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -66,7 +67,7 @@ func (r *InMemoryToolDefinitionRepository) GetByID(id string) (domain.ToolDefini
 	return definition, true, nil
 }
 
-func (r *InMemoryToolDefinitionRepository) Patch(id string, patch domain.ToolDefinitionPatch) (domain.ToolDefinition, bool, error) {
+func (r *InMemoryToolDefinitionRepository) Patch(_ context.Context, id string, patch domain.ToolDefinitionPatch) (domain.ToolDefinition, bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -101,7 +102,7 @@ func (r *InMemoryToolDefinitionRepository) Patch(id string, patch domain.ToolDef
 	return definition, true, nil
 }
 
-func (r *InMemoryToolDefinitionRepository) Deactivate(id string) (bool, error) {
+func (r *InMemoryToolDefinitionRepository) Deactivate(_ context.Context, id string) (bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -15,7 +16,7 @@ import (
 func TestInMemoryRepositoryLifecycle(t *testing.T) {
 	repo := NewInMemoryToolDefinitionRepository()
 
-	created, err := repo.Create(domain.ToolDefinition{Name: "n", Method: "GET", URL: "https://x", Active: false})
+	created, err := repo.Create(context.Background(), domain.ToolDefinition{Name: "n", Method: "GET", URL: "https://x", Active: false})
 	if err != nil {
 		t.Fatalf("create error: %v", err)
 	}
@@ -23,44 +24,44 @@ func TestInMemoryRepositoryLifecycle(t *testing.T) {
 		t.Fatalf("expected active created tool with id")
 	}
 
-	list, err := repo.List()
+	list, err := repo.List(context.Background())
 	if err != nil || len(list) != 1 {
 		t.Fatalf("expected one active item")
 	}
 
-	got, ok, err := repo.GetByID(created.ID)
+	got, ok, err := repo.GetByID(context.Background(), created.ID)
 	if err != nil || !ok || got.ID != created.ID {
 		t.Fatalf("expected get by id")
 	}
 
 	name := "new"
 	strict := true
-	patched, ok, err := repo.Patch(created.ID, domain.ToolDefinitionPatch{Name: &name, Strict: &strict})
+	patched, ok, err := repo.Patch(context.Background(), created.ID, domain.ToolDefinitionPatch{Name: &name, Strict: &strict})
 	if err != nil || !ok || patched.Name != "new" || !patched.Strict {
 		t.Fatalf("expected patch success")
 	}
 
-	ok, err = repo.Deactivate(created.ID)
+	ok, err = repo.Deactivate(context.Background(), created.ID)
 	if err != nil || !ok {
 		t.Fatalf("expected deactivate success")
 	}
 
-	list, _ = repo.List()
+	list, _ = repo.List(context.Background())
 	if len(list) != 0 {
 		t.Fatalf("expected filtered inactive items")
 	}
 
-	_, ok, _ = repo.GetByID(created.ID)
+	_, ok, _ = repo.GetByID(context.Background(), created.ID)
 	if ok {
 		t.Fatalf("expected inactive tool not found")
 	}
 
-	_, ok, _ = repo.Patch(created.ID, domain.ToolDefinitionPatch{Name: &name})
+	_, ok, _ = repo.Patch(context.Background(), created.ID, domain.ToolDefinitionPatch{Name: &name})
 	if ok {
 		t.Fatalf("expected patch false for inactive")
 	}
 
-	ok, _ = repo.Deactivate("missing")
+	ok, _ = repo.Deactivate(context.Background(), "missing")
 	if ok {
 		t.Fatalf("expected deactivate false for missing")
 	}
@@ -74,7 +75,7 @@ func TestSQLiteRepositoryLifecycleAndErrors(t *testing.T) {
 	}
 	defer repo.Close()
 
-	created, err := repo.Create(domain.ToolDefinition{
+	created, err := repo.Create(context.Background(), domain.ToolDefinition{
 		Name:        "n",
 		Description: "d",
 		Method:      "GET",
@@ -90,17 +91,17 @@ func TestSQLiteRepositoryLifecycleAndErrors(t *testing.T) {
 		t.Fatalf("expected active and id")
 	}
 
-	list, err := repo.List()
+	list, err := repo.List(context.Background())
 	if err != nil || len(list) != 1 {
 		t.Fatalf("expected list with one item")
 	}
 
-	got, ok, err := repo.GetByID(created.ID)
+	got, ok, err := repo.GetByID(context.Background(), created.ID)
 	if err != nil || !ok || got.ID != created.ID {
 		t.Fatalf("expected get by id")
 	}
 
-	_, ok, err = repo.GetByID("missing")
+	_, ok, err = repo.GetByID(context.Background(), "missing")
 	if err != nil || ok {
 		t.Fatalf("expected missing false")
 	}
@@ -108,17 +109,17 @@ func TestSQLiteRepositoryLifecycleAndErrors(t *testing.T) {
 	method := "POST"
 	strict := true
 	params := map[string]any{"changed": true}
-	patched, ok, err := repo.Patch(created.ID, domain.ToolDefinitionPatch{Method: &method, Strict: &strict, Parameters: &params})
+	patched, ok, err := repo.Patch(context.Background(), created.ID, domain.ToolDefinitionPatch{Method: &method, Strict: &strict, Parameters: &params})
 	if err != nil || !ok || patched.Method != "POST" || !patched.Strict {
 		t.Fatalf("expected patch success")
 	}
 
-	_, ok, err = repo.Patch("missing", domain.ToolDefinitionPatch{Method: &method})
+	_, ok, err = repo.Patch(context.Background(), "missing", domain.ToolDefinitionPatch{Method: &method})
 	if err != nil || ok {
 		t.Fatalf("expected patch false for missing")
 	}
 
-	_, ok, err = repo.Patch(created.ID, domain.ToolDefinitionPatch{})
+	_, ok, err = repo.Patch(context.Background(), created.ID, domain.ToolDefinitionPatch{})
 	if err != nil || ok {
 		t.Fatalf("expected patch false when no fields")
 	}
@@ -127,37 +128,37 @@ func TestSQLiteRepositoryLifecycleAndErrors(t *testing.T) {
 	description := "new_description"
 	url := "https://new-url"
 	headers := map[string]string{"h": "v"}
-	_, ok, err = repo.Patch(created.ID, domain.ToolDefinitionPatch{Name: &name, Description: &description, URL: &url, Headers: &headers})
+	_, ok, err = repo.Patch(context.Background(), created.ID, domain.ToolDefinitionPatch{Name: &name, Description: &description, URL: &url, Headers: &headers})
 	if err != nil || !ok {
 		t.Fatalf("expected patch success for name/description/url/headers")
 	}
 
-	ok, err = repo.Deactivate(created.ID)
+	ok, err = repo.Deactivate(context.Background(), created.ID)
 	if err != nil || !ok {
 		t.Fatalf("expected deactivate success")
 	}
 
-	ok, err = repo.Deactivate(created.ID)
+	ok, err = repo.Deactivate(context.Background(), created.ID)
 	if err != nil || ok {
 		t.Fatalf("expected deactivate false for inactive")
 	}
 
-	list, _ = repo.List()
+	list, _ = repo.List(context.Background())
 	if len(list) != 0 {
 		t.Fatalf("expected inactive filtered from list")
 	}
 
-	_, ok, _ = repo.GetByID(created.ID)
+	_, ok, _ = repo.GetByID(context.Background(), created.ID)
 	if ok {
 		t.Fatalf("expected inactive hidden on get")
 	}
 
-	if _, err := repo.Create(domain.ToolDefinition{Name: "bad", Method: "POST", URL: "https://x", Parameters: map[string]any{"bad": make(chan int)}}); err == nil {
+	if _, err := repo.Create(context.Background(), domain.ToolDefinition{Name: "bad", Method: "POST", URL: "https://x", Parameters: map[string]any{"bad": make(chan int)}}); err == nil {
 		t.Fatalf("expected create marshal error")
 	}
 
 	badParams := map[string]any{"bad": make(chan int)}
-	_, _, err = repo.Patch("missing", domain.ToolDefinitionPatch{Parameters: &badParams})
+	_, _, err = repo.Patch(context.Background(), "missing", domain.ToolDefinitionPatch{Parameters: &badParams})
 	if err == nil {
 		t.Fatalf("expected patch marshal error")
 	}
@@ -220,7 +221,7 @@ CREATE TABLE tool_definitions (
 	}
 
 	_ = repo.Close()
-	if _, err := repo.List(); err == nil {
+	if _, err := repo.List(context.Background()); err == nil {
 		t.Fatalf("expected list error on closed db")
 	}
 
@@ -302,16 +303,16 @@ func TestSQLiteRepositoryConstructorAndFailurePaths(t *testing.T) {
 	}
 
 	_ = repo.Close()
-	if _, err := repo.Create(domain.ToolDefinition{Name: "x", Method: "GET", URL: "https://x", Parameters: map[string]any{}}); err == nil {
+	if _, err := repo.Create(context.Background(), domain.ToolDefinition{Name: "x", Method: "GET", URL: "https://x", Parameters: map[string]any{}}); err == nil {
 		t.Fatalf("expected create error on closed db")
 	}
-	if _, _, err := repo.GetByID("tool_1"); err == nil {
+	if _, _, err := repo.GetByID(context.Background(), "tool_1"); err == nil {
 		t.Fatalf("expected get error on closed db")
 	}
-	if _, _, err := repo.Patch("tool_1", domain.ToolDefinitionPatch{Method: ptrString("GET")}); err == nil {
+	if _, _, err := repo.Patch(context.Background(), "tool_1", domain.ToolDefinitionPatch{Method: ptrString("GET")}); err == nil {
 		t.Fatalf("expected patch db error on closed db")
 	}
-	if _, err := repo.Deactivate("tool_1"); err == nil {
+	if _, err := repo.Deactivate(context.Background(), "tool_1"); err == nil {
 		t.Fatalf("expected deactivate db error on closed db")
 	}
 
@@ -322,7 +323,7 @@ func TestSQLiteRepositoryConstructorAndFailurePaths(t *testing.T) {
 
 func TestInMemoryPatchAllFields(t *testing.T) {
 	repo := NewInMemoryToolDefinitionRepository()
-	created, _ := repo.Create(domain.ToolDefinition{Name: "a", Description: "d", Method: "GET", URL: "https://x", Headers: map[string]string{}, Parameters: map[string]any{}, Strict: false})
+	created, _ := repo.Create(context.Background(), domain.ToolDefinition{Name: "a", Description: "d", Method: "GET", URL: "https://x", Headers: map[string]string{}, Parameters: map[string]any{}, Strict: false})
 
 	name := "b"
 	desc := "d2"
@@ -332,7 +333,7 @@ func TestInMemoryPatchAllFields(t *testing.T) {
 	params := map[string]any{"p": true}
 	strict := true
 
-	patched, ok, err := repo.Patch(created.ID, domain.ToolDefinitionPatch{
+	patched, ok, err := repo.Patch(context.Background(), created.ID, domain.ToolDefinitionPatch{
 		Name:        &name,
 		Description: &desc,
 		Method:      &method,
@@ -376,7 +377,7 @@ func TestSQLiteRepositoryListWithCorruptRow(t *testing.T) {
 		t.Fatalf("insert corrupt row error: %v", err)
 	}
 
-	if _, err := repo.List(); err == nil {
+	if _, err := repo.List(context.Background()); err == nil {
 		t.Fatalf("expected list error for corrupt row")
 	}
 }

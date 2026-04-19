@@ -35,7 +35,7 @@ func NewToolExecutorService(definitionService ToolDefinitionService) ToolExecuto
 }
 
 func (s ToolExecutorService) Execute(ctx context.Context, definitionID string, input ExecuteToolInput) (domain.FunctionCallOutput, error) {
-	definition, ok, err := s.definitionService.GetByID(definitionID)
+	definition, ok, err := s.definitionService.GetByID(ctx, definitionID)
 	if err != nil {
 		return domain.FunctionCallOutput{}, err
 	}

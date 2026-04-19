@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"testing"
@@ -17,7 +18,7 @@ type errRepo struct {
 	deactivateErr error
 }
 
-func (r *errRepo) Create(definition domain.ToolDefinition) (domain.ToolDefinition, error) {
+func (r *errRepo) Create(_ context.Context, definition domain.ToolDefinition) (domain.ToolDefinition, error) {
 	if r.createErr != nil {
 		return domain.ToolDefinition{}, r.createErr
 	}
@@ -25,25 +26,25 @@ func (r *errRepo) Create(definition domain.ToolDefinition) (domain.ToolDefinitio
 	definition.Active = true
 	return definition, nil
 }
-func (r *errRepo) List() ([]domain.ToolDefinition, error) {
+func (r *errRepo) List(_ context.Context) ([]domain.ToolDefinition, error) {
 	if r.listErr != nil {
 		return nil, r.listErr
 	}
 	return []domain.ToolDefinition{}, nil
 }
-func (r *errRepo) GetByID(string) (domain.ToolDefinition, bool, error) {
+func (r *errRepo) GetByID(context.Context, string) (domain.ToolDefinition, bool, error) {
 	if r.getErr != nil {
 		return domain.ToolDefinition{}, false, r.getErr
 	}
 	return domain.ToolDefinition{}, false, nil
 }
-func (r *errRepo) Patch(string, domain.ToolDefinitionPatch) (domain.ToolDefinition, bool, error) {
+func (r *errRepo) Patch(context.Context, string, domain.ToolDefinitionPatch) (domain.ToolDefinition, bool, error) {
 	if r.patchErr != nil {
 		return domain.ToolDefinition{}, false, r.patchErr
 	}
 	return domain.ToolDefinition{}, false, nil
 }
-func (r *errRepo) Deactivate(string) (bool, error) {
+func (r *errRepo) Deactivate(context.Context, string) (bool, error) {
 	if r.deactivateErr != nil {
 		return false, r.deactivateErr
 	}

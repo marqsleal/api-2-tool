@@ -34,7 +34,7 @@ func (h ToolHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.createTool(w, r)
 		return
 	case r.URL.Path == "/tool/definitions" && r.Method == http.MethodGet:
-		h.listDefinitions(w)
+		h.listDefinitions(w, r)
 		return
 	case strings.HasPrefix(r.URL.Path, "/tool/definitions/") && r.Method == http.MethodGet:
 		h.getDefinitionByID(w, r)
@@ -68,7 +68,7 @@ func (h ToolHandler) createTool(w http.ResponseWriter, r *http.Request) {
 		input.URL,
 	)
 
-	definition, err := h.definitionService.Create(input)
+	definition, err := h.definitionService.Create(r.Context(), input)
 	if err != nil {
 		if err.Error() == "name, method and url are required" {
 			log.Printf("tool create failed: validation error=%v", err)
@@ -100,9 +100,9 @@ func (h ToolHandler) createTool(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h ToolHandler) listDefinitions(w http.ResponseWriter) {
+func (h ToolHandler) listDefinitions(w http.ResponseWriter, r *http.Request) {
 	log.Printf("tool definitions list started")
-	definitions, err := h.definitionService.List()
+	definitions, err := h.definitionService.List(r.Context())
 	if err != nil {
 		log.Printf("tool definitions list failed: %v", err)
 		response.Error(w, http.StatusInternalServerError, "failed to list definitions")
@@ -137,7 +137,7 @@ func (h ToolHandler) getDefinitionByID(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("tool definition get started id=%s", id)
 
-	definition, ok, err := h.definitionService.GetByID(id)
+	definition, ok, err := h.definitionService.GetByID(r.Context(), id)
 	if err != nil {
 		log.Printf("tool definition get failed id=%s err=%v", id, err)
 		response.Error(w, http.StatusInternalServerError, "failed to get definition")
@@ -218,7 +218,7 @@ func (h ToolHandler) patchDefinitionByID(w http.ResponseWriter, r *http.Request)
 	}
 
 	log.Printf("tool patch started id=%s", id)
-	definition, err := h.definitionService.Patch(id, input)
+	definition, err := h.definitionService.Patch(r.Context(), id, input)
 	if err != nil {
 		if errors.Is(err, service.ErrDefinitionNotFound) {
 			log.Printf("tool patch not found id=%s", id)
@@ -258,7 +258,7 @@ func (h ToolHandler) deleteDefinitionByID(w http.ResponseWriter, r *http.Request
 	}
 
 	log.Printf("tool delete(logical) started id=%s", id)
-	if err := h.definitionService.Deactivate(id); err != nil {
+	if err := h.definitionService.Deactivate(r.Context(), id); err != nil {
 		if errors.Is(err, service.ErrDefinitionNotFound) {
 			log.Printf("tool delete(logical) not found id=%s", id)
 			response.Error(w, http.StatusNotFound, err.Error())

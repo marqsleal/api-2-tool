@@ -16,7 +16,7 @@ func newToolHandlerForTest() ToolHandler {
 	repo := repository.NewInMemoryToolDefinitionRepository()
 	defSvc := service.NewToolDefinitionService(repo)
 	execSvc := service.NewToolExecutorService(defSvc)
-	return NewToolHandler(defSvc, execSvc)
+	return NewToolHandler(defSvc, execSvc, nil)
 }
 
 func doReq(t *testing.T, h http.Handler, method string, path string, body string) *httptest.ResponseRecorder {

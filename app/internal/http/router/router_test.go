@@ -18,7 +18,7 @@ func TestRouterRoutes(t *testing.T) {
 	execSvc := service.NewToolExecutorService(defSvc)
 
 	healthHandler := handler.NewHealthHandler(service.NewHealthService())
-	toolHandler := handler.NewToolHandler(defSvc, execSvc)
+	toolHandler := handler.NewToolHandler(defSvc, execSvc, nil)
 
 	tmpDir := t.TempDir()
 	spec := filepath.Join(tmpDir, "openapi.yaml")

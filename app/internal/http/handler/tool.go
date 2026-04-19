@@ -16,15 +16,18 @@ import (
 type ToolHandler struct {
 	definitionService service.ToolDefinitionService
 	executorService   service.ToolExecutorService
+	jobService        *service.ToolJobService
 }
 
 func NewToolHandler(
 	definitionService service.ToolDefinitionService,
 	executorService service.ToolExecutorService,
+	jobService *service.ToolJobService,
 ) ToolHandler {
 	return ToolHandler{
 		definitionService: definitionService,
 		executorService:   executorService,
+		jobService:        jobService,
 	}
 }
 
@@ -46,7 +49,14 @@ func (h ToolHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.deleteDefinitionByID(w, r)
 		return
 	case strings.HasPrefix(r.URL.Path, "/tool/execute/") && r.Method == http.MethodPost:
+		if strings.HasSuffix(r.URL.Path, "/jobs") {
+			h.enqueueToolJob(w, r)
+			return
+		}
 		h.executeTool(w, r)
+		return
+	case strings.HasPrefix(r.URL.Path, "/tool/jobs/") && r.Method == http.MethodGet:
+		h.getToolJobByID(w, r)
 		return
 	}
 
@@ -186,6 +196,11 @@ func (h ToolHandler) executeTool(w http.ResponseWriter, r *http.Request) {
 			response.Error(w, http.StatusNotFound, err.Error())
 			return
 		}
+		if errors.Is(err, service.ErrCircuitOpen) {
+			log.Printf("tool execute blocked by circuit breaker id=%s", id)
+			response.Error(w, http.StatusServiceUnavailable, err.Error())
+			return
+		}
 
 		if strings.Contains(err.Error(), "upstream request failed") {
 			log.Printf("tool execute upstream error id=%s err=%v", id, err)
@@ -200,6 +215,83 @@ func (h ToolHandler) executeTool(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("tool execute finished id=%s call_id=%q", id, output.CallID)
 	response.JSON(w, http.StatusOK, output)
+}
+
+func (h ToolHandler) enqueueToolJob(w http.ResponseWriter, r *http.Request) {
+	if h.jobService == nil {
+		response.Error(w, http.StatusNotImplemented, "job service not configured")
+		return
+	}
+
+	id, err := pathID(strings.TrimSuffix(r.URL.Path, "/jobs"), "/tool/execute/")
+	if err != nil {
+		log.Printf("tool job enqueue failed: invalid id path=%s", r.URL.Path)
+		response.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	var input service.ExecuteToolInput
+	if err := decodeJSON(r.Body, &input); err != nil {
+		log.Printf("tool job enqueue failed id=%s: invalid request body", id)
+		response.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	job, err := h.jobService.Enqueue(r.Context(), id, input)
+	if err != nil {
+		if errors.Is(err, service.ErrDefinitionNotFound) {
+			response.Error(w, http.StatusNotFound, err.Error())
+			return
+		}
+		log.Printf("tool job enqueue failed id=%s err=%v", id, err)
+		response.Error(w, http.StatusInternalServerError, "failed to enqueue job")
+		return
+	}
+
+	response.JSON(w, http.StatusAccepted, map[string]any{
+		"job_id":        job.ID,
+		"definition_id": job.DefinitionID,
+		"status":        job.Status,
+		"attempt":       job.Attempt,
+		"max_attempts":  job.MaxAttempts,
+	})
+}
+
+func (h ToolHandler) getToolJobByID(w http.ResponseWriter, r *http.Request) {
+	if h.jobService == nil {
+		response.Error(w, http.StatusNotImplemented, "job service not configured")
+		return
+	}
+
+	jobID, err := pathID(r.URL.Path, "/tool/jobs/")
+	if err != nil {
+		log.Printf("tool job get failed: invalid id path=%s", r.URL.Path)
+		response.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	job, ok, err := h.jobService.GetByID(r.Context(), jobID)
+	if err != nil {
+		log.Printf("tool job get failed id=%s err=%v", jobID, err)
+		response.Error(w, http.StatusInternalServerError, "failed to get job")
+		return
+	}
+	if !ok {
+		response.Error(w, http.StatusNotFound, "job not found")
+		return
+	}
+
+	response.JSON(w, http.StatusOK, map[string]any{
+		"job_id":        job.ID,
+		"definition_id": job.DefinitionID,
+		"status":        job.Status,
+		"attempt":       job.Attempt,
+		"max_attempts":  job.MaxAttempts,
+		"result":        job.Result,
+		"error":         job.Error,
+		"created_at":    job.CreatedAt,
+		"updated_at":    job.UpdatedAt,
+	})
 }
 
 func (h ToolHandler) patchDefinitionByID(w http.ResponseWriter, r *http.Request) {

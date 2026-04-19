@@ -53,7 +53,7 @@ func (r *errRepo) Deactivate(context.Context, string) (bool, error) {
 
 func TestToolHandlerInternalErrorBranches(t *testing.T) {
 	repo := &errRepo{createErr: errors.New("db")}
-	h := NewToolHandler(service.NewToolDefinitionService(repo), service.NewToolExecutorService(service.NewToolDefinitionService(repo)))
+	h := NewToolHandler(service.NewToolDefinitionService(repo), service.NewToolExecutorService(service.NewToolDefinitionService(repo)), nil)
 
 	rr := doReq(t, h, http.MethodPost, "/tool", `{"name":"n","method":"GET","url":"https://x"}`)
 	if rr.Code != http.StatusInternalServerError {
@@ -61,14 +61,14 @@ func TestToolHandlerInternalErrorBranches(t *testing.T) {
 	}
 
 	repo = &errRepo{listErr: errors.New("db")}
-	h = NewToolHandler(service.NewToolDefinitionService(repo), service.NewToolExecutorService(service.NewToolDefinitionService(repo)))
+	h = NewToolHandler(service.NewToolDefinitionService(repo), service.NewToolExecutorService(service.NewToolDefinitionService(repo)), nil)
 	rr = doReq(t, h, http.MethodGet, "/tool/definitions", "")
 	if rr.Code != http.StatusInternalServerError {
 		t.Fatalf("expected list 500")
 	}
 
 	repo = &errRepo{getErr: errors.New("db")}
-	h = NewToolHandler(service.NewToolDefinitionService(repo), service.NewToolExecutorService(service.NewToolDefinitionService(repo)))
+	h = NewToolHandler(service.NewToolDefinitionService(repo), service.NewToolExecutorService(service.NewToolDefinitionService(repo)), nil)
 	rr = doReq(t, h, http.MethodGet, "/tool/definitions/tool_1", "")
 	if rr.Code != http.StatusInternalServerError {
 		t.Fatalf("expected get 500")
@@ -80,7 +80,7 @@ func TestToolHandlerInternalErrorBranches(t *testing.T) {
 	}
 
 	repo = &errRepo{patchErr: errors.New("db")}
-	h = NewToolHandler(service.NewToolDefinitionService(repo), service.NewToolExecutorService(service.NewToolDefinitionService(repo)))
+	h = NewToolHandler(service.NewToolDefinitionService(repo), service.NewToolExecutorService(service.NewToolDefinitionService(repo)), nil)
 	rr = doReq(t, h, http.MethodPatch, "/tool/definitions/tool_1", `{"description":"x"}`)
 	if rr.Code != http.StatusInternalServerError {
 		t.Fatalf("expected patch 500")
@@ -92,7 +92,7 @@ func TestToolHandlerInternalErrorBranches(t *testing.T) {
 	}
 
 	repo = &errRepo{deactivateErr: errors.New("db")}
-	h = NewToolHandler(service.NewToolDefinitionService(repo), service.NewToolExecutorService(service.NewToolDefinitionService(repo)))
+	h = NewToolHandler(service.NewToolDefinitionService(repo), service.NewToolExecutorService(service.NewToolDefinitionService(repo)), nil)
 	rr = doReq(t, h, http.MethodDelete, "/tool/definitions/tool_1", "")
 	if rr.Code != http.StatusInternalServerError {
 		t.Fatalf("expected delete 500")

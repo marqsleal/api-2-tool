@@ -7,9 +7,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/marqsleal/api-2-tool/internal/domain"
+	"github.com/marqsleal/api-2-tool/internal/repository"
 )
 
 func TestBuildHTTPRequestAndParseBody(t *testing.T) {
@@ -151,5 +154,81 @@ func TestToolExecutorExecuteScenarios(t *testing.T) {
 	repo.items["tool_down"] = domain.ToolDefinition{ID: "tool_down", Name: "down", Method: "GET", URL: "http://127.0.0.1:1", Active: true}
 	if _, err := execSvc.Execute(context.Background(), "tool_down", ExecuteToolInput{}); err == nil || !strings.Contains(err.Error(), "upstream request failed") {
 		t.Fatalf("expected upstream error, got %v", err)
+	}
+}
+
+func TestToolExecutorRetryAndCache(t *testing.T) {
+	repo := newTestRepo()
+	defSvc := NewToolDefinitionService(repo)
+	execSvc := NewToolExecutorService(defSvc)
+
+	var calls int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempt := atomic.AddInt32(&calls, 1)
+		if attempt < 3 {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(`{"error":"temporary"}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer upstream.Close()
+
+	repo.items["tool_retry_cache"] = domain.ToolDefinition{
+		ID:     "tool_retry_cache",
+		Name:   "retry_cache",
+		Method: "GET",
+		URL:    upstream.URL + "/search",
+		Active: true,
+	}
+
+	_, err := execSvc.Execute(context.Background(), "tool_retry_cache", ExecuteToolInput{Arguments: map[string]any{"q": "abc"}})
+	if err != nil {
+		t.Fatalf("unexpected execute error: %v", err)
+	}
+	if got := atomic.LoadInt32(&calls); got != 3 {
+		t.Fatalf("expected 3 upstream calls, got %d", got)
+	}
+
+	_, err = execSvc.Execute(context.Background(), "tool_retry_cache", ExecuteToolInput{Arguments: map[string]any{"q": "abc"}})
+	if err != nil {
+		t.Fatalf("unexpected cached execute error: %v", err)
+	}
+	if got := atomic.LoadInt32(&calls); got != 3 {
+		t.Fatalf("expected cached response without new upstream call, got %d", got)
+	}
+}
+
+func TestToolExecutorCircuitBreakerOpen(t *testing.T) {
+	repo := newTestRepo()
+	defSvc := NewToolDefinitionService(repo)
+
+	cbRepo := repository.NewInMemoryCircuitBreakerRepository()
+	cbSvc := NewCircuitBreakerService(cbRepo, 1, time.Minute, 1)
+	execSvc := NewToolExecutorServiceWithOptions(defSvc, &cbSvc, nil)
+
+	var calls int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":"down"}`))
+	}))
+	defer upstream.Close()
+
+	repo.items["tool_breaker"] = domain.ToolDefinition{
+		ID:     "tool_breaker",
+		Name:   "breaker",
+		Method: "GET",
+		URL:    upstream.URL + "/down",
+		Active: true,
+	}
+
+	if _, err := execSvc.Execute(context.Background(), "tool_breaker", ExecuteToolInput{}); err == nil {
+		t.Fatalf("expected first execution failure")
+	}
+
+	if _, err := execSvc.Execute(context.Background(), "tool_breaker", ExecuteToolInput{}); !errors.Is(err, ErrCircuitOpen) {
+		t.Fatalf("expected open circuit error, got %v", err)
 	}
 }

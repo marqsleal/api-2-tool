@@ -19,6 +19,7 @@ func New(
 	mux.Handle("/tool/definitions", toolHandler)
 	mux.Handle("/tool/definitions/", toolHandler)
 	mux.Handle("/tool/execute/", toolHandler)
+	mux.Handle("/tool/jobs/", toolHandler)
 	mux.Handle("/swagger/", swaggerUIHandler)
 	mux.Handle("/swagger/doc.yaml", openAPISpecHandler)
 	return middleware.RequestLogger(mux)

@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/marqsleal/api-2-tool/internal/app"
 	"github.com/marqsleal/api-2-tool/internal/config"
@@ -30,9 +32,31 @@ func main() {
 		}
 	}()
 
+	circuitBreakerRepository, err := repository.NewSQLiteCircuitBreakerRepository(cfg.SQLitePath)
+	if err != nil {
+		log.Fatalf("failed to initialize circuit breaker repository: %v", err)
+	}
+	defer func() {
+		if err := circuitBreakerRepository.Close(); err != nil {
+			log.Printf("failed to close circuit breaker repository: %v", err)
+		}
+	}()
+
+	toolJobRepository, err := repository.NewSQLiteToolJobRepository(cfg.SQLitePath)
+	if err != nil {
+		log.Fatalf("failed to initialize job repository: %v", err)
+	}
+	defer func() {
+		if err := toolJobRepository.Close(); err != nil {
+			log.Printf("failed to close job repository: %v", err)
+		}
+	}()
+
 	toolDefinitionService := service.NewToolDefinitionService(toolDefinitionRepository)
-	toolExecutorService := service.NewToolExecutorService(toolDefinitionService)
-	toolHandler := handler.NewToolHandler(toolDefinitionService, toolExecutorService)
+	circuitBreakerService := service.NewCircuitBreakerService(circuitBreakerRepository, 5, 30*time.Second, 2)
+	toolExecutorService := service.NewToolExecutorServiceWithOptions(toolDefinitionService, &circuitBreakerService, nil)
+	toolJobService := service.NewToolJobService(toolJobRepository, toolExecutorService)
+	toolHandler := handler.NewToolHandler(toolDefinitionService, toolExecutorService, &toolJobService)
 	openAPISpecHandler := handler.NewOpenAPISpecHandler(cfg.OpenAPISpecPath)
 	swaggerUIHandler := handler.NewSwaggerUIHandler("/swagger/doc.yaml")
 
@@ -44,6 +68,11 @@ func main() {
 	defer signal.Stop(stop)
 
 	serverErr := make(chan error, 1)
+	workerCtx, workerCancel := context.WithCancel(context.Background())
+	defer workerCancel()
+	if err := toolJobService.StartWorkers(workerCtx, 3); err != nil {
+		log.Fatalf("failed to start job workers: %v", err)
+	}
 	go func() {
 		serverErr <- app.Start(server)
 	}()
@@ -58,6 +87,7 @@ func main() {
 		log.Println("shutdown initiated")
 	}
 
+	workerCancel()
 	app.Shutdown(server, cfg.ShutdownTimeout)
 	if err := <-serverErr; err != nil {
 		log.Printf("server stopped with error: %v", err)

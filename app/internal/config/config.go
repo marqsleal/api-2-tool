@@ -7,12 +7,15 @@ import (
 )
 
 type Config struct {
-	Port            string
-	SQLitePath      string
-	OpenAPISpecPath string
-	ShutdownTimeout time.Duration
-	JobWorkerCount  int
-	JobRetention    time.Duration
+	Port             string
+	SQLitePath       string
+	OpenAPISpecPath  string
+	ShutdownTimeout  time.Duration
+	JobWorkerCount   int
+	JobRetention     time.Duration
+	LogLevel         string
+	HumanLog         bool
+	LogIncludeSource bool
 }
 
 func Load() Config {
@@ -42,13 +45,32 @@ func Load() Config {
 			jobRetention = time.Duration(parsed) * time.Hour
 		}
 	}
+	logLevel := os.Getenv("LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "INFO"
+	}
+	humanLog := false
+	if raw := os.Getenv("HUMAN_LOG"); raw != "" {
+		if parsed, err := strconv.ParseBool(raw); err == nil {
+			humanLog = parsed
+		}
+	}
+	logIncludeSource := false
+	if raw := os.Getenv("LOG_INCLUDE_SOURCE"); raw != "" {
+		if parsed, err := strconv.ParseBool(raw); err == nil {
+			logIncludeSource = parsed
+		}
+	}
 
 	return Config{
-		Port:            port,
-		SQLitePath:      sqlitePath,
-		OpenAPISpecPath: openAPISpecPath,
-		ShutdownTimeout: 5 * time.Second,
-		JobWorkerCount:  jobWorkerCount,
-		JobRetention:    jobRetention,
+		Port:             port,
+		SQLitePath:       sqlitePath,
+		OpenAPISpecPath:  openAPISpecPath,
+		ShutdownTimeout:  5 * time.Second,
+		JobWorkerCount:   jobWorkerCount,
+		JobRetention:     jobRetention,
+		LogLevel:         logLevel,
+		HumanLog:         humanLog,
+		LogIncludeSource: logIncludeSource,
 	}
 }

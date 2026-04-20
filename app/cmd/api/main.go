@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,43 +12,48 @@ import (
 	"github.com/marqsleal/api-2-tool/internal/config"
 	"github.com/marqsleal/api-2-tool/internal/http/handler"
 	"github.com/marqsleal/api-2-tool/internal/http/router"
+	"github.com/marqsleal/api-2-tool/internal/logging"
 	"github.com/marqsleal/api-2-tool/internal/repository"
 	"github.com/marqsleal/api-2-tool/internal/service"
 )
 
 func main() {
 	cfg := config.Load()
+	slog.SetDefault(logging.New(cfg.LogLevel, cfg.HumanLog, cfg.LogIncludeSource))
 
 	healthService := service.NewHealthService()
 	healthHandler := handler.NewHealthHandler(healthService)
 
 	toolDefinitionRepository, err := repository.NewSQLiteToolDefinitionRepository(cfg.SQLitePath)
 	if err != nil {
-		log.Fatalf("failed to initialize sqlite repository: %v", err)
+		slog.Error("failed_to_initialize_sqlite_repository", "component", "main", "error", err)
+		os.Exit(1)
 	}
 	defer func() {
 		if err := toolDefinitionRepository.Close(); err != nil {
-			log.Printf("failed to close sqlite repository: %v", err)
+			slog.Error("failed_to_close_sqlite_repository", "component", "main", "error", err)
 		}
 	}()
 
 	circuitBreakerRepository, err := repository.NewSQLiteCircuitBreakerRepository(cfg.SQLitePath)
 	if err != nil {
-		log.Fatalf("failed to initialize circuit breaker repository: %v", err)
+		slog.Error("failed_to_initialize_circuit_breaker_repository", "component", "main", "error", err)
+		os.Exit(1)
 	}
 	defer func() {
 		if err := circuitBreakerRepository.Close(); err != nil {
-			log.Printf("failed to close circuit breaker repository: %v", err)
+			slog.Error("failed_to_close_circuit_breaker_repository", "component", "main", "error", err)
 		}
 	}()
 
 	toolJobRepository, err := repository.NewSQLiteToolJobRepository(cfg.SQLitePath)
 	if err != nil {
-		log.Fatalf("failed to initialize job repository: %v", err)
+		slog.Error("failed_to_initialize_job_repository", "component", "main", "error", err)
+		os.Exit(1)
 	}
 	defer func() {
 		if err := toolJobRepository.Close(); err != nil {
-			log.Printf("failed to close job repository: %v", err)
+			slog.Error("failed_to_close_job_repository", "component", "main", "error", err)
 		}
 	}()
 
@@ -72,7 +77,8 @@ func main() {
 	workerCtx, workerCancel := context.WithCancel(context.Background())
 	defer workerCancel()
 	if err := toolJobService.StartWorkers(workerCtx, cfg.JobWorkerCount); err != nil {
-		log.Fatalf("failed to start job workers: %v", err)
+		slog.Error("failed_to_start_job_workers", "component", "main", "error", err)
+		os.Exit(1)
 	}
 	go func() {
 		serverErr <- app.Start(server)
@@ -81,17 +87,18 @@ func main() {
 	select {
 	case err := <-serverErr:
 		if err != nil {
-			log.Fatalf("server failed: %v", err)
+			slog.Error("server_failed", "component", "main", "error", err)
+			os.Exit(1)
 		}
 		return
 	case <-stop:
-		log.Println("shutdown initiated")
+		slog.Info("shutdown_initiated", "component", "main")
 	}
 
 	workerCancel()
 	app.Shutdown(server, cfg.ShutdownTimeout)
 	if err := <-serverErr; err != nil {
-		log.Printf("server stopped with error: %v", err)
+		slog.Error("server_stopped_with_error", "component", "main", "error", err)
 	}
-	log.Println("server stopped")
+	slog.Info("server_stopped", "component", "main")
 }

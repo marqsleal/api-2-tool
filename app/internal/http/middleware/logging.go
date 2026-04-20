@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -29,14 +29,18 @@ func RequestLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		remoteIP := requestRemoteIP(r)
+		requestID := RequestIDFromContext(r.Context())
 
-		log.Printf(
-			"request started method=%s path=%s raw_query=%q remote_ip=%s user_agent=%q",
-			r.Method,
-			r.URL.Path,
-			r.URL.RawQuery,
-			remoteIP,
-			r.UserAgent(),
+		slog.InfoContext(
+			r.Context(),
+			"request_started",
+			"component", "http.middleware",
+			"request_id", requestID,
+			"method", r.Method,
+			"path", r.URL.Path,
+			"raw_query", r.URL.RawQuery,
+			"remote_ip", remoteIP,
+			"user_agent", r.UserAgent(),
 		)
 
 		loggedWriter := &loggingResponseWriter{
@@ -46,14 +50,17 @@ func RequestLogger(next http.Handler) http.Handler {
 		next.ServeHTTP(loggedWriter, r)
 
 		duration := time.Since(start)
-		log.Printf(
-			"request finished method=%s path=%s status=%d bytes=%d duration=%s remote_ip=%s",
-			r.Method,
-			r.URL.Path,
-			loggedWriter.status,
-			loggedWriter.bytes,
-			duration.Round(time.Millisecond),
-			remoteIP,
+		slog.InfoContext(
+			r.Context(),
+			"request_finished",
+			"component", "http.middleware",
+			"request_id", requestID,
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", loggedWriter.status,
+			"bytes", loggedWriter.bytes,
+			"duration_ms", duration.Milliseconds(),
+			"remote_ip", remoteIP,
 		)
 	})
 }

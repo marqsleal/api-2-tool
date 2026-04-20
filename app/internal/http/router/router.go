@@ -22,5 +22,5 @@ func New(
 	mux.Handle("/tool/jobs/", toolHandler)
 	mux.Handle("/swagger/", swaggerUIHandler)
 	mux.Handle("/swagger/doc.yaml", openAPISpecHandler)
-	return middleware.RequestLogger(mux)
+	return middleware.RequestID(middleware.RequestLogger(mux))
 }

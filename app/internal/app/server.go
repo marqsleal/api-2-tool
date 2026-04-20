@@ -3,7 +3,7 @@ package app
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -19,7 +19,7 @@ func NewServer(cfg config.Config, handler http.Handler) *http.Server {
 }
 
 func Start(server *http.Server) error {
-	log.Printf("server running on %s", server.Addr)
+	slog.Info("server_running", "component", "app.server", "addr", server.Addr)
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
@@ -32,6 +32,6 @@ func Shutdown(server *http.Server, timeout time.Duration) {
 	defer cancel()
 
 	if err := server.Shutdown(ctx); err != nil {
-		log.Printf("shutdown err: %v", err)
+		slog.Error("server_shutdown_error", "component", "app.server", "error", err)
 	}
 }
